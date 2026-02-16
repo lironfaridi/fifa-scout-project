@@ -20,15 +20,12 @@ st.markdown("""
     <style>
     .main {direction: ltr;}
     h1, h2, h3, h4, h5, h6, p, div {text-align: left;}
-    div.stButton > button:first-child {
-        background-color: #007bff;
-        color: white;
-        font-weight: bold;
-    }
-    .stDownloadButton > button {
-        background-color: #28a745 !important;
-        color: white !important;
-        font-weight: bold;
+
+    /* Styling for the Action Buttons */
+    div.stButton > button {
+        width: 100%;
+        border-radius: 5px;
+        height: 3em;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -63,6 +60,8 @@ if 'player1_name' not in st.session_state:
     st.session_state['player1_name'] = ""
 if 'run' not in st.session_state:
     st.session_state['run'] = False
+if 'selected_comparison' not in st.session_state:
+    st.session_state['selected_comparison'] = None
 
 
 def full_reset():
@@ -98,12 +97,12 @@ def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
 
     fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
 
-    # Player 1
+    # Player 1 (Input)
     v1_plot = v1 + v1[:1]
     ax.plot(angles, v1_plot, linewidth=2, color='#1f77b4', label=n1)
     ax.fill(angles, v1_plot, '#1f77b4', alpha=0.1)
 
-    # Player 2 / Comparison
+    # Player 2 (Comparison)
     if v2:
         v2_plot = v2 + v2[:1]
         ax.plot(angles, v2_plot, linewidth=2, color='#d62728', label=n2)
@@ -115,15 +114,11 @@ def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
 
 
 # =========================================================
-# 4. SIDEBAR - SCOUTING FORM (Expanders)
+# 4. SIDEBAR - SCOUTING FORM (Fixed Categories)
 # =========================================================
 st.sidebar.title("🛠️ Scouting Form")
-if st.sidebar.button("🔄 Reset App"): full_reset()
 
-st.sidebar.markdown("---")
-star_name = st.sidebar.selectbox("Benchmark vs Star:", ["None"] + sorted(players_db['Name'].unique().tolist()))
-
-# --- SECTION: PROFILE ---
+# Basic Info
 st.sidebar.subheader("👤 Player Profile")
 name_input = st.sidebar.text_input("Full Name", "New Prospect")
 age_input = st.sidebar.slider("Age", 15, 45, 22)
@@ -131,34 +126,42 @@ pot_input = st.sidebar.slider("Potential", 40, 99, 85)
 pos_input = st.sidebar.selectbox("Best Position", ['ST', 'LW', 'RW', 'CAM', 'CM', 'CDM', 'CB', 'LB', 'RB', 'GK'])
 foot_input = st.sidebar.radio("Preferred Foot", ["Right", "Left"], horizontal=True)
 
+st.sidebar.markdown("---")
+st.sidebar.caption("👇 Open categories to edit attributes")
+
 # --- SECTION: ATTACKING ---
-with st.sidebar.expander("⚽ ATTACKING SKILLS", expanded=True):
-    in_ball = st.sidebar.slider("Ball Control", 10, 99, 75)
-    in_drib = st.sidebar.slider("Dribbling", 10, 99, 75)
-    in_fin = st.sidebar.slider("Finishing", 10, 99, 70)
-    in_shot = st.sidebar.slider("Shot Power", 10, 99, 70)
+# שינוי 1: הקטגוריות כעת מכילות את הסליידרים בתוך ה-Expander בצורה ברורה
+with st.sidebar.expander("⚽ ATTACKING SKILLS", expanded=False):
+    in_ball = st.slider("Ball Control", 10, 99, 75)
+    in_drib = st.slider("Dribbling", 10, 99, 75)
+    in_fin = st.slider("Finishing", 10, 99, 70)
+    in_shot = st.slider("Shot Power", 10, 99, 70)
 
 # --- SECTION: PHYSICAL ---
-with st.sidebar.expander("🏃 PHYSICAL & PACE"):
-    in_sprint = st.sidebar.slider("Sprint Speed", 10, 99, 80)
-    in_stam = st.sidebar.slider("Stamina", 10, 99, 70)
-    in_str = st.sidebar.slider("Strength", 10, 99, 70)
-    in_reac = st.sidebar.slider("Reactions", 10, 99, 72)
+with st.sidebar.expander("🏃 PHYSICAL & PACE", expanded=False):
+    in_sprint = st.slider("Sprint Speed", 10, 99, 80)
+    in_stam = st.slider("Stamina", 10, 99, 70)
+    in_str = st.slider("Strength", 10, 99, 70)
+    in_reac = st.slider("Reactions", 10, 99, 72)
 
 # --- SECTION: DEFENSE & PASSING ---
-with st.sidebar.expander("🛡️ DEFENSE & PASSING"):
-    in_pass = st.sidebar.slider("Short Passing", 10, 99, 70)
-    in_vis = st.sidebar.slider("Vision", 10, 99, 68)
-    in_tack = st.sidebar.slider("Standing Tackle", 10, 99, 50)
-    in_int = st.sidebar.slider("Interceptions", 10, 99, 50)
+with st.sidebar.expander("🛡️ DEFENSE & PASSING", expanded=False):
+    in_pass = st.slider("Short Passing", 10, 99, 70)
+    in_vis = st.slider("Vision", 10, 99, 68)
+    in_tack = st.slider("Standing Tackle", 10, 99, 50)
+    in_int = st.slider("Interceptions", 10, 99, 50)
 
 # --- SECTION: ADVANCED ---
-with st.sidebar.expander("💎 ADVANCED PARAMETERS"):
-    in_comp = st.sidebar.slider("Composure", 10, 99, 75)
-    in_long_p = st.sidebar.slider("Long Passing", 10, 99, 65)
-    in_long_s = st.sidebar.slider("Long Shots", 10, 99, 60)
-    in_agg = st.sidebar.slider("Aggression", 10, 99, 60)
-    in_pos_att = st.sidebar.slider("Positioning", 10, 99, 72)
+with st.sidebar.expander("💎 ADVANCED PARAMETERS", expanded=False):
+    in_comp = st.slider("Composure", 10, 99, 75)
+    in_long_p = st.slider("Long Passing", 10, 99, 65)
+    in_long_s = st.slider("Long Shots", 10, 99, 60)
+    in_agg = st.slider("Aggression", 10, 99, 60)
+    in_pos_att = st.slider("Positioning", 10, 99, 72)
+
+# Global Reset Button at bottom of sidebar
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 Reset App"): full_reset()
 
 # Consolidate Dictionary
 input_dict = {
@@ -173,85 +176,90 @@ input_dict = {
 # =========================================================
 # 5. MAIN PAGE - LOGIC & DASHBOARD
 # =========================================================
-st.title("⚽ FIFA AI Scout Pro: Advanced Scouting System")
-st.write("Professional Decision Support System for Talent Identification.")
+st.title("⚽ FIFA AI Scout Pro")
 
-# Comparison Controls
-col_btn1, col_btn2 = st.columns(2)
-with col_btn1:
-    if st.button("💾 SAVE AS PLAYER 1", use_container_width=True):
-        st.session_state['player1_data'] = input_dict.copy()
-        st.session_state['player1_name'] = name_input
-        st.success(f"Player '{name_input}' stored in slot 1.")
+# --- ACTION AREA (Top of Main Page) ---
+# שינוי 2: כפתור השמירה וכפתור ההרצה נמצאים באזור ייעודי ולא ככותרת
+action_container = st.container()
+with action_container:
+    col_act1, col_act2 = st.columns([1, 1])
+    with col_act1:
+        # Save Player Button
+        if st.button("💾 SAVE THIS PLAYER (For Comparison)"):
+            st.session_state['player1_data'] = input_dict.copy()
+            st.session_state['player1_name'] = name_input
+            st.success(f"Player '{name_input}' saved! You can now edit stats to create a second player.")
 
-with col_btn2:
-    if st.button("🚀 EXECUTE SCOUTING ENGINE", use_container_width=True):
-        st.session_state['run'] = True
+    with col_act2:
+        # Run Button
+        if st.button("🚀 LAUNCH ANALYSIS", type="primary"):
+            st.session_state['run'] = True
+            st.session_state['selected_comparison'] = None  # Reset selection on new run
+
+# Star Benchmark Selection (Optional)
+star_name = st.selectbox("Or compare with a real star:", ["None"] + sorted(players_db['Name'].unique().tolist()))
 
 if st.session_state.get('run'):
     st.divider()
-    l_col, r_col = st.columns([1, 2])
+    l_col, r_col = st.columns([1, 1.5])  # Adjusted ratio for better table view
 
     with l_col:
-        # Valuation Model
+        # --- PREDICTION ---
         df_x = pd.DataFrame(columns=model_features)
         df_x.loc[0] = 0
         for k, v in input_dict.items():
             if k in df_x.columns: df_x.at[0, k] = v
 
         raw_pred = model_pipeline.predict(df_x)[0]
-        st.metric("Estimated Market Value", f"€{raw_pred / 1e6:.2f}M")
+        st.markdown(f"### 💰 Value: €{raw_pred / 1e6:.2f}M")
 
-        # AI Insights Calculation
+        # --- AI INSIGHTS ---
         impact_feats = ['SprintSpeed', 'Finishing', 'Potential', 'ShortPassing', 'Dribbling', 'Reactions']
-        boosters = []
         recommendations = []
-
         for f in impact_feats:
-            # Strength check
-            val = input_dict[f]
-            if val > 75:
-                boosters.append((f, f"High proficiency in {f} drives current value."))
-
-            # Improvement potential
             t_up = df_x.copy()
             t_up.at[0, f] += 10
             potential_gain = (model_pipeline.predict(t_up)[0] - raw_pred) / 1e6
             recommendations.append((f, potential_gain))
-
-        st.subheader("💡 AI Scouting Insights")
         top_recs = sorted(recommendations, key=lambda x: x[1], reverse=True)[:3]
 
-        with st.container(border=True):
-            st.markdown("**Top Strengths:**")
-            for b_name, b_text in boosters[:3]:
-                st.write(f"✅ {b_text}")
-
-            st.markdown("**Growth Opportunities:**")
+        with st.expander("💡 View Improvement Recommendations"):
             for r_name, r_gain in top_recs:
-                st.write(f"🚀 +10 in **{r_name}** ➔ **+€{r_gain:.1f}M** value")
+                st.write(f"🚀 +10 in **{r_name}** ➔ **+€{r_gain:.1f}M**")
 
-        # Radar Display
-        st.subheader("📊 Tactical Analysis")
+        # --- RADAR CHART LOGIC ---
+        st.subheader("📊 Comparison Radar")
         radar_labels = ['Pace', 'Shooting', 'Passing', 'Dribbling', 'Defense', 'Physical']
         v1 = get_radar_values(input_dict)
 
-        # Comparison logic
-        if st.session_state['player1_data']:
-            v2 = get_radar_values(st.session_state['player1_data'])
-            fig = plot_radar_comparison(radar_labels, v1, v2, name_input, st.session_state['player1_name'])
-        elif star_name != "None":
-            v2 = get_db_player_data(star_name)
-            fig = plot_radar_comparison(radar_labels, v1, v2, name_input, star_name)
-        else:
-            fig = plot_radar_comparison(radar_labels, v1, None, name_input)
+        # Determine who to compare against
+        # Priority: 1. Clicked Table Row, 2. Saved Player 1, 3. Star, 4. None
 
+        comp_vals = None
+        comp_name = "None"
+
+        # Check if a user selected someone from the tables (See on_select below)
+        if st.session_state['selected_comparison']:
+            comp_name = st.session_state['selected_comparison']
+            comp_vals = get_db_player_data(comp_name)
+            st.info(f"Comparing against selected: {comp_name}")
+
+        elif st.session_state['player1_data']:
+            comp_name = st.session_state['player1_name']
+            comp_vals = get_radar_values(st.session_state['player1_data'])
+            st.info(f"Comparing against saved: {comp_name}")
+
+        elif star_name != "None":
+            comp_name = star_name
+            comp_vals = get_db_player_data(star_name)
+
+        fig = plot_radar_comparison(radar_labels, v1, comp_vals, name_input, comp_name)
         st.pyplot(fig)
 
     with r_col:
-        st.subheader(f"🔍 Talent Discovery: {name_input}")
+        st.subheader(f"🔍 Discovery Engine")
 
-        # Content-Based Filtering (CBF) Engine
+        # CBF Engine
         pos_pool = players_db[players_db['Best Position'] == pos_input].copy()
         pos_pool['sim_score'] = 100 - (
                 abs(pos_pool['Potential'] - pot_input) +
@@ -259,71 +267,97 @@ if st.session_state.get('run'):
                 abs(pos_pool.get('ShortPassing', 70) - in_pass) * 0.5
         )
 
-        # Table 1: Younger Prospects (Wonderkids)
-        st.markdown("### 🎣 1. Next-Gen Talents")
-        st.caption("Players younger than the subject with high tactical similarity.")
-        wonderkids = pos_pool[pos_pool['Age'] < age_input].sort_values('sim_score', ascending=False).head(5)
-        st.dataframe(wonderkids[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']], use_container_width=True)
+        # Columns to display in UI
+        display_cols = ['Name', 'Age', 'Value_EUR', 'sim_score']
 
-        # Table 2: General Tactical Matches
+        # --- TABLE 1: WONDERKIDS ---
+        st.markdown("### 🎣 1. Next-Gen Talents")
+        wonderkids = pos_pool[pos_pool['Age'] < age_input].sort_values('sim_score', ascending=False).head(5)
+
+        # שינוי 3: הוספת on_select כדי לאפשר לחיצה והשוואה
+        event_w = st.dataframe(
+            wonderkids[display_cols],
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="wk_table"
+        )
+
+        if len(event_w.selection.rows) > 0:
+            row_idx = event_w.selection.rows[0]
+            sel_name = wonderkids.iloc[row_idx]['Name']
+            st.session_state['selected_comparison'] = sel_name
+
+        # --- TABLE 2: SOULMATES ---
         st.markdown("### 🧬 2. Tactical Soulmates")
-        st.caption("Closest matches in the global database regardless of age.")
         matches = pos_pool.sort_values('sim_score', ascending=False).head(5)
-        st.dataframe(matches[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']], use_container_width=True)
+
+        # שינוי 3: הוספת on_select גם לטבלה השנייה
+        event_m = st.dataframe(
+            matches[display_cols],
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            key="sm_table"
+        )
+
+        if len(event_m.selection.rows) > 0:
+            row_idx = event_m.selection.rows[0]
+            sel_name = matches.iloc[row_idx]['Name']
+            st.session_state['selected_comparison'] = sel_name
 
         # =========================================================
-        # 6. PROFESSIONAL CSV EXPORT (Strict Horizontal Layout)
+        # 6. CSV EXPORT - FULL ATTRIBUTES
         # =========================================================
         st.divider()
-        st.subheader("📥 Export Comprehensive Report")
+        st.subheader("📥 Export Report")
 
         try:
-            # A. TARGET PLAYER (Horizontal Row)
-            exp_target = pd.DataFrame([input_dict])
-            exp_target.insert(0, 'Player Name', name_input)
+            # שינוי 4: לוגיקה לאיסוף כל העמודות הטכניות גם עבור השחקנים שנמצאו
+            # List of technical columns to include in the CSV export from the DB
+            tech_cols_to_export = [
+                'SprintSpeed', 'Finishing', 'ShotPower', 'ShortPassing', 'Dribbling',
+                'StandingTackle', 'Interceptions', 'Stamina', 'Strength', 'Vision',
+                'BallControl', 'LongPassing', 'Aggression', 'Composure'
+            ]
+            # Ensure these columns exist in DB
+            valid_tech_cols = [c for c in tech_cols_to_export if c in players_db.columns]
+            full_export_cols = ['Name', 'Age', 'Value_EUR', 'sim_score'] + valid_tech_cols
+            if 'Club' in players_db.columns: full_export_cols.insert(2, 'Club')
 
-            # B. MARKET VALUE (Single Cell Block)
-            exp_val = pd.DataFrame([{'Metric': 'AI Predicted Market Value', 'Result': f"€{raw_pred:,.0f}"}])
+            # Build CSV Parts
+            csv_final = "--- SECTION 1: TARGET PLAYER INPUT ---\n"
+            target_df = pd.DataFrame([input_dict])
+            target_df.insert(0, 'Player Name', name_input)
+            csv_final += target_df.to_csv(index=False)
 
-            # C. INSIGHTS SUMMARY
-            exp_insights = pd.DataFrame([
-                {'Type': 'Strength', 'Observation': boosters[0][1] if len(boosters) > 0 else 'N/A'},
-                {'Type': 'Strength', 'Observation': boosters[1][1] if len(boosters) > 1 else 'N/A'},
-                {'Type': 'Improvement', 'Observation': f"Improve {top_recs[0][0]} for +€{top_recs[0][1]}M impact"},
-                {'Type': 'Improvement', 'Observation': f"Improve {top_recs[1][0]} for +€{top_recs[1][1]}M impact"}
-            ])
+            csv_final += "\n--- SECTION 2: AI PREDICTION ---\n"
+            csv_final += f"Predicted Value,€{raw_pred:.0f}\n"
 
-            # Building the unified CSV string
-            csv_final = "--- SECTION 1: TARGET PLAYER ATTRIBUTES ---\n"
-            csv_final += exp_target.to_csv(index=False)
-            csv_final += "\n--- SECTION 2: FINANCIAL VALUATION ---\n"
-            csv_final += exp_val.to_csv(index=False)
-            csv_final += "\n--- SECTION 3: AI SCOUTING RECOMMENDATIONS ---\n"
-            csv_final += exp_insights.to_csv(index=False)
+            csv_final += "\n--- SECTION 3: WONDERKIDS (FULL STATS) ---\n"
+            # Extract full stats for wonderkids
+            wk_full = wonderkids[full_export_cols]
+            csv_final += wk_full.to_csv(index=False)
 
-            # Discovery Tables
-            safe_cols = ['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']
-            if 'Club' in players_db.columns: safe_cols.insert(2, 'Club')
-
-            csv_final += "\n--- SECTION 4: NEXT-GEN TALENT DISCOVERY ---\n"
-            csv_final += wonderkids[safe_cols].to_csv(index=False)
-            csv_final += "\n--- SECTION 5: TACTICAL SOULMATES ---\n"
-            csv_final += matches[safe_cols].to_csv(index=False)
+            csv_final += "\n--- SECTION 4: SOULMATES (FULL STATS) ---\n"
+            # Extract full stats for matches
+            sm_full = matches[full_export_cols]
+            csv_final += sm_full.to_csv(index=False)
 
             st.download_button(
-                label="Download Full Scouting Dossier (CSV)",
+                label="Download Full CSV (With Stats)",
                 data=csv_final.encode('utf-8-sig'),
-                file_name=f"Dossier_{name_input}.csv",
+                file_name=f"Report_{name_input}.csv",
                 mime="text/csv",
                 use_container_width=True
             )
         except Exception as e:
-            st.error(f"Export Generation Failed: {e}")
+            st.error(f"Export Error: {e}")
 
 else:
     # Landing View
     st.write("---")
-    st.markdown("### Welcome, Head Scout")
-    st.write("Construct a player profile using the panel on the left to begin deep-dive analysis.")
+    st.markdown("### Ready to Scout?")
+    st.info("👈 Use the Scouting Form on the left to build a player profile.")
     st.image("https://upload.wikimedia.org/wikipedia/commons/a/ad/Football_in_Bloomington%2C_Indiana%2C_1996.jpg",
-             caption="FIFA Analytics Engine v2.0", use_container_width=True)
+             use_container_width=True)
