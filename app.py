@@ -322,14 +322,9 @@ with col2:
                     fig_comp2 = create_radar_comparison(cats, u_vals, t_vals, input_name, p_name)
                     st.pyplot(fig_comp2)
 
-                # =========================================================
-                # 6. הוספת כפתור ייצוא דו"ח (Export)
-                # =========================================================
+                # --- סעיף 6: ייצוא ---
                 st.write("---")
-                st.subheader("📥 ייצוא דו"
-                ח
-                סקאוטינג
-                ")
+                st.subheader("📥 ייצוא דוח סקאוטינג")
 
                 try:
                     if not wonderkids.empty or not bargains.empty:
@@ -337,19 +332,16 @@ with col2:
                         csv_data = export_df.to_csv(index=False).encode('utf-8-sig')
 
                         st.download_button(
-                            label="📄 הורד דו"
-                        ח
-                        שחקנים(CSV)
-                        ",
-                        data = csv_data,
-                               file_name = f"Scouting_Report_{input_name}_{input_position}.csv",
-                                           mime = "text/csv",
-                                                  use_container_width = True
+                            label="📄 הורד דוח שחקנים (CSV)",
+                            data=csv_data,
+                            file_name=f"Scouting_Report_{input_name}_{input_position}.csv",
+                            mime="text/csv",
+                            use_container_width=True
                         )
-                        except:
-                        pass
+                except:
+                    pass
 
-            except Exception as e:
+        except Exception as e:
             st.error(f"שגיאה במנוע הסקאוטינג: {e}")
 
     else:
