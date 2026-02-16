@@ -270,6 +270,7 @@ with col2:
                         abs(pool.get('StandingTackle', 40) - in_tack) * 0.5
                 ) / 3.0
 
+                # --- טבלה 1: ילדי פלא ---
                 st.markdown("### 🎣 1. איתור כישרונות (Wonderkids)")
                 similar_pool = pool[pool['sim_score'] > 70].copy()
                 wonderkids = similar_pool[similar_pool['Age'] <= input_age].sort_values(['Age', 'Potential'],
@@ -297,6 +298,8 @@ with col2:
                     st.pyplot(fig_comp)
 
                 st.write("---")
+
+                # --- טבלה 2: מציאות ---
                 st.markdown("### 💰 2. הזדמנויות בשוק (Bargains)")
                 bargains = similar_pool[similar_pool['Value_EUR'] < base_pred * 0.9].sort_values('Potential',
                                                                                                  ascending=False).head(
@@ -322,53 +325,55 @@ with col2:
                     fig_comp2 = create_radar_comparison(cats, u_vals, t_vals, input_name, p_name)
                     st.pyplot(fig_comp2)
 
-                    # =========================================================
-                    # 6. ייצוא דוח סקאוטינג מאוחד (CSV)
-                    # =========================================================
-                    st.write("---")
-                    st.subheader("📥 ייצוא דוח סקאוטינג מאוחד")
+                # =========================================================
+                # 6. ייצוא דוח סקאוטינג מאוחד (CSV) - הועבר מחוץ לתנאי הבחירה
+                # =========================================================
+                st.write("---")
+                st.subheader("📥 ייצוא דוח סקאוטינג מאוחד")
 
-                    try:
-                        # 1. יצירת בלוק נתוני השחקן שהוזן
-                        input_report = "--- TARGET PLAYER DATA ---\n"
-                        input_report += f"Name,{input_name}\n"
-                        input_report += f"Position,{input_position}\n"
-                        input_report += f"Predicted Market Value,€{base_pred:,.0f}\n\n"
+                try:
+                    # יצירת תוכן ה-CSV כטקסט
+                    report_lines = []
+                    report_lines.append("--- TARGET PLAYER DATA ---")
+                    report_lines.append(f"Name,{input_name}")
+                    report_lines.append(f"Position,{input_position}")
+                    report_lines.append(f"Predicted Market Value,EUR {base_pred:,.0f}")
+                    report_lines.append("")
 
-                        # הפיכת מילון הנתונים לשורות ב-CSV
-                        for attr, val in user_input_dict.items():
-                            input_report += f"{attr},{val}\n"
+                    # הוספת נתוני הסליידרים
+                    for attr, val in user_input_dict.items():
+                        report_lines.append(f"{attr},{val}")
 
-                        # 2. הוספת טבלת ילדי פלא (Wonderkids)
-                        input_report += "\n--- 1. WONDERKIDS (TOP MATCHES) ---\n"
-                        if not wonderkids.empty:
-                            input_report += wonderkids[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']].to_csv(
-                                index=False)
-                        else:
-                            input_report += "No players found in this category.\n"
+                    report_lines.append("")
+                    report_lines.append("--- 1. WONDERKIDS (TOP MATCHES) ---")
+                    if not wonderkids.empty:
+                        report_lines.append(
+                            wonderkids[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']].to_csv(index=False))
+                    else:
+                        report_lines.append("No players found")
 
-                        # 3. הוספת טבלת מציאות (Bargains)
-                        input_report += "\n--- 2. BARGAINS (VALUE OPPORTUNITIES) ---\n"
-                        if not bargains.empty:
-                            input_report += bargains[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']].to_csv(
-                                index=False)
-                        else:
-                            input_report += "No players found in this category.\n"
+                    report_lines.append("")
+                    report_lines.append("--- 2. BARGAINS (VALUE OPPORTUNITIES) ---")
+                    if not bargains.empty:
+                        report_lines.append(
+                            bargains[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']].to_csv(index=False))
+                    else:
+                        report_lines.append("No players found")
 
-                        # המרה לביטים עם קידוד שתומך בעברית באקסל
-                        csv_bytes = input_report.encode('utf-8-sig')
+                    full_csv_text = "\n".join(report_lines)
+                    csv_bytes = full_csv_text.encode('utf-8-sig')
 
-                        st.download_button(
-                            label="📄 הורד דוח סקאוטינג מלא (CSV)",
-                            data=csv_bytes,
-                            file_name=f"Full_Scouting_Report_{input_name}.csv",
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-                        st.caption("הדוח כולל את נתוני הקלט, חיזוי השווי ושתי טבלאות השחקנים הדומים.")
+                    st.download_button(
+                        label="📄 הורד דוח סקאוטינג מלא (CSV)",
+                        data=csv_bytes,
+                        file_name=f"Full_Scouting_Report_{input_name}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                    st.caption("הדוח כולל את נתוני המטרה, ילדי פלא והזדמנויות שוק.")
 
-                    except Exception as e:
-                        st.error(f"שגיאה ביצירת הדוח: {e}")
+                except Exception as e:
+                    st.error(f"שגיאה ביצירת הדוח: {e}")
 
         except Exception as e:
             st.error(f"שגיאה במנוע הסקאוטינג: {e}")
