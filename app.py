@@ -322,24 +322,53 @@ with col2:
                     fig_comp2 = create_radar_comparison(cats, u_vals, t_vals, input_name, p_name)
                     st.pyplot(fig_comp2)
 
-                # --- סעיף 6: ייצוא ---
-                st.write("---")
-                st.subheader("📥 ייצוא דוח סקאוטינג")
+                    # =========================================================
+                    # 6. ייצוא דוח סקאוטינג מאוחד (CSV)
+                    # =========================================================
+                    st.write("---")
+                    st.subheader("📥 ייצוא דוח סקאוטינג מאוחד")
 
-                try:
-                    if not wonderkids.empty or not bargains.empty:
-                        export_df = pd.concat([wonderkids, bargains]).drop_duplicates(subset=['Name'])
-                        csv_data = export_df.to_csv(index=False).encode('utf-8-sig')
+                    try:
+                        # 1. יצירת בלוק נתוני השחקן שהוזן
+                        input_report = "--- TARGET PLAYER DATA ---\n"
+                        input_report += f"Name,{input_name}\n"
+                        input_report += f"Position,{input_position}\n"
+                        input_report += f"Predicted Market Value,€{base_pred:,.0f}\n\n"
+
+                        # הפיכת מילון הנתונים לשורות ב-CSV
+                        for attr, val in user_input_dict.items():
+                            input_report += f"{attr},{val}\n"
+
+                        # 2. הוספת טבלת ילדי פלא (Wonderkids)
+                        input_report += "\n--- 1. WONDERKIDS (TOP MATCHES) ---\n"
+                        if not wonderkids.empty:
+                            input_report += wonderkids[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']].to_csv(
+                                index=False)
+                        else:
+                            input_report += "No players found in this category.\n"
+
+                        # 3. הוספת טבלת מציאות (Bargains)
+                        input_report += "\n--- 2. BARGAINS (VALUE OPPORTUNITIES) ---\n"
+                        if not bargains.empty:
+                            input_report += bargains[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']].to_csv(
+                                index=False)
+                        else:
+                            input_report += "No players found in this category.\n"
+
+                        # המרה לביטים עם קידוד שתומך בעברית באקסל
+                        csv_bytes = input_report.encode('utf-8-sig')
 
                         st.download_button(
-                            label="📄 הורד דוח שחקנים (CSV)",
-                            data=csv_data,
-                            file_name=f"Scouting_Report_{input_name}_{input_position}.csv",
+                            label="📄 הורד דוח סקאוטינג מלא (CSV)",
+                            data=csv_bytes,
+                            file_name=f"Full_Scouting_Report_{input_name}.csv",
                             mime="text/csv",
                             use_container_width=True
                         )
-                except:
-                    pass
+                        st.caption("הדוח כולל את נתוני הקלט, חיזוי השווי ושתי טבלאות השחקנים הדומים.")
+
+                    except Exception as e:
+                        st.error(f"שגיאה ביצירת הדוח: {e}")
 
         except Exception as e:
             st.error(f"שגיאה במנוע הסקאוטינג: {e}")
