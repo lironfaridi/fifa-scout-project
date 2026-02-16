@@ -39,10 +39,13 @@ st.markdown("""
 # =========================================================
 @st.cache_resource
 def load_all_data():
+    import os
+    st.write("Files found in server:", os.listdir())
+
     try:
         model = joblib.load('fifa_model_pipeline.pkl')
         features = joblib.load('model_features.pkl')
-        db = joblib.load('fifa_players_db.pkl')
+        db = joblib.load('fifa_players_lite.pkl')
         return model, features, db
     except FileNotFoundError:
         st.error("❌ שגיאה: קבצי המודל (.pkl) חסרים בתיקייה.")
