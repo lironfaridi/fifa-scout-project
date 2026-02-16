@@ -68,6 +68,8 @@ if 'player1_name' not in st.session_state:
     st.session_state['player1_name'] = ""
 if 'run' not in st.session_state:
     st.session_state['run'] = False
+if 'selected_comparison' not in st.session_state:
+    st.session_state['selected_comparison'] = None
 
 
 def full_reset():
@@ -76,13 +78,14 @@ def full_reset():
     st.rerun()
 
 
-# Callback to clear table selection when dropdown changes
+# Callback to safely clear table selection when dropdown changes
 def on_dropdown_change():
-    # We clear the specific keys used by the dataframes
+    # Fix: Use 'del' instead of assignment to avoid StreamlitValueAssignmentNotAllowedError
     if 'wk_table' in st.session_state:
-        st.session_state['wk_table'] = {}
+        del st.session_state['wk_table']
     if 'sm_table' in st.session_state:
-        st.session_state['sm_table'] = {}
+        del st.session_state['sm_table']
+    st.session_state['selected_comparison'] = None
 
 
 # =========================================================
@@ -126,7 +129,7 @@ def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
 
     # Add numbers at vertices for Player 1
     for angle, val in zip(angles[:-1], v1):
-        ax.text(angle, val + 10, str(int(val)), ha='center', va='center', fontsize=10, fontweight='bold',
+        ax.text(angle, val + 12, str(int(val)), ha='center', va='center', fontsize=10, fontweight='bold',
                 color='#1f77b4')
 
     # Player 2 (Comparison)
@@ -152,10 +155,10 @@ def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
 # =========================================================
 st.sidebar.title("🛠️ Scouting Form")
 
-# --- COMPARISON DROPDOWN (Restored & Fixed) ---
+# --- COMPARISON DROPDOWN ---
 st.sidebar.markdown("### 🏆 Comparison Benchmark")
 star_options = ["None"] + sorted(players_db['Name'].unique().tolist())
-# We add on_change to clear table selection conflict
+# on_change triggers the safe clear function
 star_name = st.sidebar.selectbox("Compare with Real Player:", star_options, index=0, on_change=on_dropdown_change)
 st.sidebar.markdown("---")
 
@@ -230,20 +233,17 @@ with action_container:
     with col_act2:
         if st.button("🚀 LAUNCH ANALYSIS", type="primary"):
             st.session_state['run'] = True
-            # Clear table selections on new run to avoid stale data
-            if 'wk_table' in st.session_state: st.session_state['wk_table'] = {}
-            if 'sm_table' in st.session_state: st.session_state['sm_table'] = {}
+            st.session_state['selected_comparison'] = None
+            # Fix: safely delete keys instead of setting to empty dict
+            if 'wk_table' in st.session_state: del st.session_state['wk_table']
+            if 'sm_table' in st.session_state: del st.session_state['sm_table']
 
 if st.session_state.get('run'):
     st.divider()
 
     # -------------------------------------------------------------
-    # PRE-CALCULATION FOR SYNCHRONIZATION (The Fix for the Lag)
+    # PRE-CALCULATION LOGIC
     # -------------------------------------------------------------
-    # We must calculate the CBF tables BEFORE rendering the columns
-    # so we can know if a selection was made.
-
-    # CBF Engine
     pos_pool = players_db[players_db['Best Position'] == pos_input].copy()
     pos_pool['sim_score'] = 100 - (
             abs(pos_pool['Potential'] - pot_input) +
@@ -251,18 +251,13 @@ if st.session_state.get('run'):
             abs(pos_pool.get('ShortPassing', 70) - in_pass) * 0.5
     )
 
-    # Generate the DataFrames
     wonderkids = pos_pool[pos_pool['Age'] < age_input].sort_values('sim_score', ascending=False).head(5)
     matches = pos_pool.sort_values('sim_score', ascending=False).head(5)
 
-    # Determine Comparison Target based on interactions
+    # Determine Comparison Target
     comp_vals = None
     comp_name = "None"
     comp_source_msg = ""
-
-    # 1. Check Table Selections (Highest Priority)
-    # We check st.session_state directly because the dataframe hasn't rendered yet in the UI flow,
-    # but the state is already updated by Streamlit.
 
     sel_player_name = None
 
@@ -272,25 +267,22 @@ if st.session_state.get('run'):
         idx = st.session_state['wk_table']['selection']['rows'][0]
         sel_player_name = wonderkids.iloc[idx]['Name']
 
-    # Check Soulmates Table State (Overrides Wonderkids if clicked later)
+    # Check Soulmates Table State
     elif 'sm_table' in st.session_state and st.session_state['sm_table'].get('selection') and \
             st.session_state['sm_table']['selection'].get('rows'):
         idx = st.session_state['sm_table']['selection']['rows'][0]
         sel_player_name = matches.iloc[idx]['Name']
 
-    # Apply Selection Logic
     if sel_player_name:
         comp_name = sel_player_name
         comp_vals = get_db_player_data(sel_player_name)
         comp_source_msg = f"Comparing against selected: {comp_name}"
 
-    # 2. Check Saved Player 1
     elif st.session_state['player1_data']:
         comp_name = st.session_state['player1_name']
         comp_vals = get_radar_values(st.session_state['player1_data'])
         comp_source_msg = f"Comparing against saved: {comp_name}"
 
-    # 3. Check Dropdown
     elif star_name != "None":
         comp_name = star_name
         comp_vals = get_db_player_data(star_name)
@@ -335,7 +327,7 @@ if st.session_state.get('run'):
 
         st.subheader("💡 AI Scout Insights")
         with st.container(border=True):
-            st.markdown("**✅ Top Value Drivers:**")
+            st.markdown("**✅ Top Value Contributors:**")
             for dr_name, dr_val in top_drivers:
                 st.write(f"- **{dr_name}**: Adds ~**€{dr_val:.1f}M**")
 
@@ -362,8 +354,6 @@ if st.session_state.get('run'):
 
         # --- TABLE 1: WONDERKIDS ---
         st.markdown("### 🎣 1. Next-Gen Talents")
-        # We render the dataframe using the pre-calculated data
-        # We use a KEY to enable session state persistence and selection
         st.dataframe(
             wonderkids[display_cols],
             use_container_width=True,
