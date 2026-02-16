@@ -68,14 +68,21 @@ if 'player1_name' not in st.session_state:
     st.session_state['player1_name'] = ""
 if 'run' not in st.session_state:
     st.session_state['run'] = False
-if 'selected_comparison' not in st.session_state:
-    st.session_state['selected_comparison'] = None
 
 
 def full_reset():
     for key in list(st.session_state.keys()):
         del st.session_state[key]
     st.rerun()
+
+
+# Callback to clear table selection when dropdown changes
+def on_dropdown_change():
+    # We clear the specific keys used by the dataframes
+    if 'wk_table' in st.session_state:
+        st.session_state['wk_table'] = {}
+    if 'sm_table' in st.session_state:
+        st.session_state['sm_table'] = {}
 
 
 # =========================================================
@@ -119,7 +126,7 @@ def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
 
     # Add numbers at vertices for Player 1
     for angle, val in zip(angles[:-1], v1):
-        ax.text(angle, val + 8, str(int(val)), ha='center', va='center', fontsize=10, fontweight='bold',
+        ax.text(angle, val + 10, str(int(val)), ha='center', va='center', fontsize=10, fontweight='bold',
                 color='#1f77b4')
 
     # Player 2 (Comparison)
@@ -127,14 +134,11 @@ def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
         v2_plot = v2 + v2[:1]
         ax.plot(angles, v2_plot, linewidth=2, color='#d62728', label=n2)
         ax.fill(angles, v2_plot, '#d62728', alpha=0.1)
-        # Optional: Add numbers for player 2 (can be cluttered, usually p1 is enough)
-        # for angle, val in zip(angles[:-1], v2):
-        #     ax.text(angle, val - 8, str(int(val)), ha='center', va='center', fontsize=9, color='#d62728')
 
     # Labels for axes
     plt.xticks(angles[:-1], labels, color='black', size=11)
 
-    # Remove radial labels (the 20, 40, 60 circles) to clean up view since we have vertex numbers
+    # Remove radial labels (the 20, 40, 60 circles) to clean up view
     ax.set_yticklabels([])
 
     # Legend
@@ -148,10 +152,11 @@ def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
 # =========================================================
 st.sidebar.title("🛠️ Scouting Form")
 
-# --- RESTORED COMPARISON DROPDOWN ---
+# --- COMPARISON DROPDOWN (Restored & Fixed) ---
 st.sidebar.markdown("### 🏆 Comparison Benchmark")
 star_options = ["None"] + sorted(players_db['Name'].unique().tolist())
-star_name = st.sidebar.selectbox("Compare with Real Player:", star_options, index=0)
+# We add on_change to clear table selection conflict
+star_name = st.sidebar.selectbox("Compare with Real Player:", star_options, index=0, on_change=on_dropdown_change)
 st.sidebar.markdown("---")
 
 # Basic Info
@@ -225,10 +230,75 @@ with action_container:
     with col_act2:
         if st.button("🚀 LAUNCH ANALYSIS", type="primary"):
             st.session_state['run'] = True
-            st.session_state['selected_comparison'] = None
+            # Clear table selections on new run to avoid stale data
+            if 'wk_table' in st.session_state: st.session_state['wk_table'] = {}
+            if 'sm_table' in st.session_state: st.session_state['sm_table'] = {}
 
 if st.session_state.get('run'):
     st.divider()
+
+    # -------------------------------------------------------------
+    # PRE-CALCULATION FOR SYNCHRONIZATION (The Fix for the Lag)
+    # -------------------------------------------------------------
+    # We must calculate the CBF tables BEFORE rendering the columns
+    # so we can know if a selection was made.
+
+    # CBF Engine
+    pos_pool = players_db[players_db['Best Position'] == pos_input].copy()
+    pos_pool['sim_score'] = 100 - (
+            abs(pos_pool['Potential'] - pot_input) +
+            abs(pos_pool.get('SprintSpeed', 70) - in_sprint) * 0.5 +
+            abs(pos_pool.get('ShortPassing', 70) - in_pass) * 0.5
+    )
+
+    # Generate the DataFrames
+    wonderkids = pos_pool[pos_pool['Age'] < age_input].sort_values('sim_score', ascending=False).head(5)
+    matches = pos_pool.sort_values('sim_score', ascending=False).head(5)
+
+    # Determine Comparison Target based on interactions
+    comp_vals = None
+    comp_name = "None"
+    comp_source_msg = ""
+
+    # 1. Check Table Selections (Highest Priority)
+    # We check st.session_state directly because the dataframe hasn't rendered yet in the UI flow,
+    # but the state is already updated by Streamlit.
+
+    sel_player_name = None
+
+    # Check Wonderkids Table State
+    if 'wk_table' in st.session_state and st.session_state['wk_table'].get('selection') and \
+            st.session_state['wk_table']['selection'].get('rows'):
+        idx = st.session_state['wk_table']['selection']['rows'][0]
+        sel_player_name = wonderkids.iloc[idx]['Name']
+
+    # Check Soulmates Table State (Overrides Wonderkids if clicked later)
+    elif 'sm_table' in st.session_state and st.session_state['sm_table'].get('selection') and \
+            st.session_state['sm_table']['selection'].get('rows'):
+        idx = st.session_state['sm_table']['selection']['rows'][0]
+        sel_player_name = matches.iloc[idx]['Name']
+
+    # Apply Selection Logic
+    if sel_player_name:
+        comp_name = sel_player_name
+        comp_vals = get_db_player_data(sel_player_name)
+        comp_source_msg = f"Comparing against selected: {comp_name}"
+
+    # 2. Check Saved Player 1
+    elif st.session_state['player1_data']:
+        comp_name = st.session_state['player1_name']
+        comp_vals = get_radar_values(st.session_state['player1_data'])
+        comp_source_msg = f"Comparing against saved: {comp_name}"
+
+    # 3. Check Dropdown
+    elif star_name != "None":
+        comp_name = star_name
+        comp_vals = get_db_player_data(star_name)
+        comp_source_msg = f"Comparing against star: {comp_name}"
+
+    # -------------------------------------------------------------
+    # UI LAYOUT
+    # -------------------------------------------------------------
     l_col, r_col = st.columns([1, 1.5])
 
     with l_col:
@@ -241,70 +311,46 @@ if st.session_state.get('run'):
         raw_pred = model_pipeline.predict(df_x)[0]
         st.markdown(f"### 💰 Value: €{raw_pred / 1e6:.2f}M")
 
-        # --- AI INSIGHTS CALCULATION ---
-        # 1. Top Contributors (What makes him valuable NOW)
-        # Strategy: Reduce each attribute by 20 and see how much value drops
+        # --- AI INSIGHTS ---
         current_drivers = []
         check_features = ['SprintSpeed', 'Finishing', 'Potential', 'ShortPassing', 'Dribbling', 'Reactions',
                           'BallControl', 'ShotPower']
 
         for f in check_features:
             t_down = df_x.copy()
-            t_down.at[0, f] -= 20  # Simulate removing this skill
+            t_down.at[0, f] -= 20
             drop = raw_pred - model_pipeline.predict(t_down)[0]
-            if drop > 0:
-                current_drivers.append((f, drop / 1e6))  # Convert to Millions
+            if drop > 0: current_drivers.append((f, drop / 1e6))
 
-        # Sort by impact
         top_drivers = sorted(current_drivers, key=lambda x: x[1], reverse=True)[:3]
 
-        # 2. Future Improvements (What adds value if Improved)
         recommendations = []
         for f in check_features:
             t_up = df_x.copy()
-            t_up.at[0, f] += 10  # Simulate improving
+            t_up.at[0, f] += 10
             gain = (model_pipeline.predict(t_up)[0] - raw_pred) / 1e6
-            if gain > 0:
-                recommendations.append((f, gain))
+            if gain > 0: recommendations.append((f, gain))
 
         top_recs = sorted(recommendations, key=lambda x: x[1], reverse=True)[:3]
 
-        # --- DISPLAY INSIGHTS ---
         st.subheader("💡 AI Scout Insights")
-
         with st.container(border=True):
-            st.markdown("**✅ Top Value Contributors (Why he is worth this):**")
+            st.markdown("**✅ Top Value Drivers:**")
             for dr_name, dr_val in top_drivers:
-                st.write(f"- **{dr_name}**: Contributes approx **€{dr_val:.1f}M** to current value.")
+                st.write(f"- **{dr_name}**: Adds ~**€{dr_val:.1f}M**")
 
             st.markdown("---")
-            st.markdown("**🚀 Improvement Recommendations (+10 pts):**")
+            st.markdown("**🚀 Growth Opportunities (+10 pts):**")
             for r_name, r_gain in top_recs:
-                st.write(f"- Improving **{r_name}** adds **€{r_gain:.1f}M** value.")
+                st.write(f"- **{r_name}**: Adds **€{r_gain:.1f}M**")
 
-        # --- RADAR CHART LOGIC ---
+        # --- RADAR CHART ---
         st.subheader("📊 Comparison Radar")
+        if comp_source_msg:
+            st.info(comp_source_msg)
+
         radar_labels = ['Pace', 'Shooting', 'Passing', 'Dribbling', 'Defense', 'Physical']
         v1 = get_radar_values(input_dict)
-
-        comp_vals = None
-        comp_name = "None"
-
-        # Priority Logic for Comparison
-        if st.session_state['selected_comparison']:
-            comp_name = st.session_state['selected_comparison']
-            comp_vals = get_db_player_data(comp_name)
-            st.info(f"Comparing against selected: {comp_name}")
-
-        elif st.session_state['player1_data']:
-            comp_name = st.session_state['player1_name']
-            comp_vals = get_radar_values(st.session_state['player1_data'])
-            st.info(f"Comparing against saved: {comp_name}")
-
-        elif star_name != "None":
-            comp_name = star_name
-            comp_vals = get_db_player_data(star_name)
-            st.info(f"Comparing against star: {comp_name}")
 
         fig = plot_radar_comparison(radar_labels, v1, comp_vals, name_input, comp_name)
         st.pyplot(fig)
@@ -312,21 +358,13 @@ if st.session_state.get('run'):
     with r_col:
         st.subheader(f"🔍 Discovery Engine")
 
-        # CBF Engine
-        pos_pool = players_db[players_db['Best Position'] == pos_input].copy()
-        pos_pool['sim_score'] = 100 - (
-                abs(pos_pool['Potential'] - pot_input) +
-                abs(pos_pool.get('SprintSpeed', 70) - in_sprint) * 0.5 +
-                abs(pos_pool.get('ShortPassing', 70) - in_pass) * 0.5
-        )
-
         display_cols = ['Name', 'Age', 'Value_EUR', 'sim_score']
 
         # --- TABLE 1: WONDERKIDS ---
         st.markdown("### 🎣 1. Next-Gen Talents")
-        wonderkids = pos_pool[pos_pool['Age'] < age_input].sort_values('sim_score', ascending=False).head(5)
-
-        event_w = st.dataframe(
+        # We render the dataframe using the pre-calculated data
+        # We use a KEY to enable session state persistence and selection
+        st.dataframe(
             wonderkids[display_cols],
             use_container_width=True,
             on_select="rerun",
@@ -334,25 +372,15 @@ if st.session_state.get('run'):
             key="wk_table"
         )
 
-        if len(event_w.selection.rows) > 0:
-            row_idx = event_w.selection.rows[0]
-            st.session_state['selected_comparison'] = wonderkids.iloc[row_idx]['Name']
-
         # --- TABLE 2: SOULMATES ---
         st.markdown("### 🧬 2. Tactical Soulmates")
-        matches = pos_pool.sort_values('sim_score', ascending=False).head(5)
-
-        event_m = st.dataframe(
+        st.dataframe(
             matches[display_cols],
             use_container_width=True,
             on_select="rerun",
             selection_mode="single-row",
             key="sm_table"
         )
-
-        if len(event_m.selection.rows) > 0:
-            row_idx = event_m.selection.rows[0]
-            st.session_state['selected_comparison'] = matches.iloc[row_idx]['Name']
 
         # =========================================================
         # 6. CSV EXPORT
@@ -371,14 +399,12 @@ if st.session_state.get('run'):
             full_cols = ['Name', 'Age', 'Value_EUR', 'sim_score'] + valid_tech
             if 'Club' in players_db.columns: full_cols.insert(2, 'Club')
 
-            # 2. Build Insights DataFrame for CSV
+            # 2. Build Insights DataFrame
             insights_data = []
             for d_name, d_val in top_drivers:
-                insights_data.append(
-                    {'Type': 'Current Contributor', 'Feature': d_name, 'Impact': f"Contributes €{d_val:.1f}M"})
+                insights_data.append({'Type': 'Current Driver', 'Feature': d_name, 'Impact': f"Adds €{d_val:.1f}M"})
             for r_name, r_val in top_recs:
-                insights_data.append(
-                    {'Type': 'Improvement Opportunity', 'Feature': r_name, 'Impact': f"Gain €{r_val:.1f}M if improved"})
+                insights_data.append({'Type': 'Recommendation', 'Feature': r_name, 'Impact': f"Gain €{r_val:.1f}M"})
 
             df_insights = pd.DataFrame(insights_data)
 
@@ -391,7 +417,7 @@ if st.session_state.get('run'):
             csv_final += "\n--- SECTION 2: AI PREDICTION ---\n"
             csv_final += f"Predicted Value,€{raw_pred:.0f}\n"
 
-            csv_final += "\n--- SECTION 3: AI DRIVERS & RECOMMENDATIONS ---\n"
+            csv_final += "\n--- SECTION 3: AI INSIGHTS & RECOMMENDATIONS ---\n"
             csv_final += df_insights.to_csv(index=False)
 
             csv_final += "\n--- SECTION 4: WONDERKIDS (FULL STATS) ---\n"
