@@ -7,7 +7,7 @@ import math
 import os
 
 # =========================================================
-# 1. הגדרות עמוד ועיצוב
+# 1. PAGE CONFIG & UI STYLING (English)
 # =========================================================
 st.set_page_config(
     page_title="FIFA AI Scout Pro",
@@ -16,16 +16,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Standard LTR styling for English
 st.markdown("""
     <style>
-    .main {direction: rtl;}
-    h1, h2, h3, h4, h5, h6, p, div {text-align: right;}
-    .stTextInput > label {float: right;}
-    .stSelectbox > label {float: right;}
-    .stNumberInput > label {float: right;}
-    .stSlider > label {float: right;}
-    .stDataFrame {direction: ltr;} 
-    /* עיצוב כפתור איפוס */
+    .main {direction: ltr;}
+    h1, h2, h3, h4, h5, h6, p, div {text-align: left;}
+    /* Reset Button Styling */
     div.stButton > button:first-child {
         background-color: #f0f2f6;
         color: black;
@@ -36,7 +32,7 @@ st.markdown("""
 
 
 # =========================================================
-# 2. פונקציות טעינה ואיפוס
+# 2. DATA LOADING & RESET
 # =========================================================
 @st.cache_resource
 def load_all_data():
@@ -51,7 +47,7 @@ def load_all_data():
         db = joblib.load(db_path)
         return model, features, db
     except FileNotFoundError:
-        st.error("❌ שגיאה: קבצי המודל (.pkl) חסרים בתיקייה.")
+        st.error("❌ Error: Model files (.pkl) are missing in the repository.")
         st.stop()
 
 
@@ -66,14 +62,11 @@ def reset_values():
 
 
 # =========================================================
-# 3. פונקציות עזר לגרפים ונתונים
+# 3. HELPER FUNCTIONS (Radar & Stats)
 # =========================================================
-
 def get_player_stats_from_db(player_name):
-    """שולף נתונים של שחקן מהמאגר וממיר אותם ל-6 קטגוריות הרדאר"""
     row = players_db[players_db['Name'] == player_name].head(1)
     if row.empty: return None
-
     try:
         pace = row.get('SprintSpeed', pd.Series([50])).iloc[0]
         sho = (row.get('Finishing', pd.Series([50])).iloc[0] + row.get('ShotPower', pd.Series([50])).iloc[0]) / 2
@@ -88,86 +81,74 @@ def get_player_stats_from_db(player_name):
 
 
 def create_radar_comparison(categories, user_vals, comp_vals=None, user_name="My Player", comp_name="Comparison"):
-    """מצייר גרף רדאר עם ערכים מספריים"""
     N = len(categories)
     angles = [n / float(N) * 2 * math.pi for n in range(N)]
     angles += angles[:1]
-
     fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
     ax.set_theta_offset(math.pi / 2)
     ax.set_theta_direction(-1)
-
     plt.xticks(angles[:-1], categories, color='grey', size=10)
     ax.set_rlabel_position(0)
     plt.yticks([20, 40, 60, 80], ["20", "40", "60", "80"], color="grey", size=7)
     plt.ylim(0, 110)
-
-    # --- שחקן המשתמש (כחול) ---
+    # User Player
     vals = user_vals + user_vals[:1]
     ax.plot(angles, vals, linewidth=2, linestyle='solid', label=user_name, color='#1f77b4')
     ax.fill(angles, vals, '#1f77b4', alpha=0.1)
-
     for ang, val in zip(angles[:-1], user_vals):
         ax.text(ang, val + 12, str(int(val)), ha='center', va='center', fontsize=9, fontweight='bold', color='#1f77b4')
-
-    # --- שחקן להשוואה (אדום) ---
+    # Comparison Player
     if comp_vals:
         c_vals = comp_vals + comp_vals[:1]
         ax.plot(angles, c_vals, linewidth=2, linestyle='solid', label=comp_name, color='#d62728')
         ax.fill(angles, c_vals, '#d62728', alpha=0.1)
-
     plt.legend(loc='upper right', bbox_to_anchor=(0.1, 0.1))
     plt.title("Player Comparison Analysis", size=14, y=1.1)
     return fig
 
 
 # =========================================================
-# 4. סרגל צד - קלט מלא
+# 4. SIDEBAR - ORGANIZED INPUTS
 # =========================================================
-st.sidebar.title("🛠️ נתוני שחקן")
+st.sidebar.title("🛠️ Player Attributes")
 
-if st.sidebar.button("🔄 אפס נתונים (Reset)", on_click=reset_values):
+if st.sidebar.button("🔄 Reset All Data", on_click=reset_values):
     st.rerun()
 
-st.sidebar.markdown("### 🔍 השוואה לשחקן קיים")
-all_names = ["ללא"] + sorted(players_db['Name'].unique().tolist())
-ref_player = st.sidebar.selectbox("בחר כוכב להשוואה:", all_names, key='key_ref')
+st.sidebar.markdown("### 🔍 Reference Star")
+all_names = ["None"] + sorted(players_db['Name'].unique().tolist())
+ref_player = st.sidebar.selectbox("Compare with existing star:", all_names, key='key_ref')
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 📋 פרטים כלליים")
-input_name = st.sidebar.text_input("שם השחקן", "My Player")
-
-input_age = st.sidebar.slider("גיל", 15, 45, 24, key='key_age')
-input_potential = st.sidebar.slider("פוטנציאל", 40, 99, 85, key='key_potential')
-input_position = st.sidebar.selectbox("עמדה", ['ST', 'CF', 'LW', 'RW', 'CAM', 'CM', 'CDM', 'CB', 'LB', 'RB', 'GK'],
+st.sidebar.markdown("### 📋 General Info")
+input_name = st.sidebar.text_input("Player Name", "New Prospect")
+input_age = st.sidebar.slider("Age", 15, 45, 24, key='key_age')
+input_potential = st.sidebar.slider("Potential", 40, 99, 85, key='key_potential')
+input_position = st.sidebar.selectbox("Best Position",
+                                      ['ST', 'CF', 'LW', 'RW', 'CAM', 'CM', 'CDM', 'CB', 'LB', 'RB', 'GK'],
                                       key='key_pos')
-input_foot = st.sidebar.radio("רגל מועדפת", ["Right", "Left"], horizontal=True)
+input_foot = st.sidebar.radio("Preferred Foot", ["Right", "Left"], horizontal=True)
 
-st.sidebar.markdown("### ⚽ שליטה וטכניקה")
-in_ball = st.sidebar.slider("שליטה בכדור", 10, 99, 75, key='key_ball')
-in_drib = st.sidebar.slider("כדרור", 10, 99, 75, key='key_drib')
-in_comp = st.sidebar.slider("קור רוח", 10, 99, 70, key='key_comp')
-in_reac = st.sidebar.slider("תגובות", 10, 99, 70, key='key_reac')
+st.sidebar.markdown("### ⚽ Core Skills")
+in_ball = st.sidebar.slider("Ball Control", 10, 99, 75, key='key_ball')
+in_drib = st.sidebar.slider("Dribbling", 10, 99, 75, key='key_drib')
+in_sprint = st.sidebar.slider("Sprint Speed", 10, 99, 80, key='key_sprint')
+in_fin = st.sidebar.slider("Finishing", 10, 99, 70, key='key_fin')
 
-st.sidebar.markdown("### 🎯 התקפה ובעיטה")
-in_fin = st.sidebar.slider("סיומת", 10, 99, 70, key='key_fin')
-in_shot = st.sidebar.slider("עוצמת בעיטה", 10, 99, 75, key='key_shot')
-in_long = st.sidebar.slider("בעיטות מרחוק", 10, 99, 65, key='key_long')
-in_pos_att = st.sidebar.slider("מיקום התקפי", 10, 99, 70, key='key_pos_att')
-
-st.sidebar.markdown("### 🔭 מסירות")
-in_pass = st.sidebar.slider("מסירות קצרות", 10, 99, 72, key='key_pass')
-in_vis = st.sidebar.slider("ראיית משחק", 10, 99, 68, key='key_vis')
-
-st.sidebar.markdown("### 💪 פיזי והגנה")
-in_sprint = st.sidebar.slider("מהירות", 10, 99, 80, key='key_sprint')
-in_stam = st.sidebar.slider("סיבולת", 10, 99, 75, key='key_stam')
-in_str = st.sidebar.slider("חוזק", 10, 99, 70, key='key_str')
-in_agg = st.sidebar.slider("אגרסיביות", 10, 99, 65, key='key_agg')
-
-st.sidebar.markdown("### 🛡️ הגנה")
-in_tack = st.sidebar.slider("תיקול עומד", 10, 99, 40, key='key_tack')
-in_int = st.sidebar.slider("חטיפות", 10, 99, 40, key='key_int')
+# ADVANCED STATS EXPANDER - To add more depth without clutter
+with st.sidebar.expander("🚀 Advanced Technical Stats"):
+    in_pass = st.sidebar.slider("Short Passing", 10, 99, 72, key='key_pass')
+    in_vis = st.sidebar.slider("Vision", 10, 99, 68, key='key_vis')
+    in_shot = st.sidebar.slider("Shot Power", 10, 99, 75, key='key_shot')
+    in_long = st.sidebar.slider("Long Shots", 10, 99, 65, key='key_long')
+    in_comp = st.sidebar.slider("Composure", 10, 99, 70, key='key_comp')
+    in_reac = st.sidebar.slider("Reactions", 10, 99, 70, key='key_reac')
+    in_pos_att = st.sidebar.slider("Att. Positioning", 10, 99, 70, key='key_pos_att')
+    in_stam = st.sidebar.slider("Stamina", 10, 99, 75, key='key_stam')
+    in_str = st.sidebar.slider("Strength", 10, 99, 70, key='key_str')
+    in_agg = st.sidebar.slider("Aggression", 10, 99, 65, key='key_agg')
+    in_tack = st.sidebar.slider("Standing Tackle", 10, 99, 40, key='key_tack')
+    in_int = st.sidebar.slider("Interceptions", 10, 99, 40, key='key_int')
 
 user_input_dict = {
     'Age': input_age, 'Potential': input_potential, 'Best Position': input_position, 'Preferred Foot': input_foot,
@@ -179,16 +160,16 @@ user_input_dict = {
 }
 
 # =========================================================
-# 5. מסך ראשי
+# 5. MAIN DASHBOARD
 # =========================================================
 st.title("⚽ FIFA AI Scout Pro: Interactive Dashboard")
-st.markdown("### פרויקט גמר - הנדסת תעשייה וניהול")
+st.markdown("##### Final Project - Industrial Engineering & Management")
 st.write("---")
 
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    if st.button("🚀 חשב שווי והרץ סקאוטינג", use_container_width=True):
+    if st.button("🚀 Calculate Value & Run Scouting", use_container_width=True):
         st.session_state['run'] = True
 
     if st.session_state.get('run'):
@@ -201,13 +182,12 @@ with col1:
             base_pred = model_pipeline.predict(input_df)[0]
             val_m = max(0, base_pred / 1_000_000)
 
-            st.success("שווי שוק מוערך:")
+            st.success("Estimated Market Value:")
             st.metric(label="Market Value", value=f"€{val_m:.2f} M")
 
-            st.markdown("### 📊 ניתוח גורמים (AI Insights)")
+            st.markdown("### 📊 AI Insights (Feature Impact)")
             check_list = ['SprintSpeed', 'Finishing', 'ShotPower', 'Dribbling', 'StandingTackle', 'Potential',
                           'BallControl', 'ShortPassing']
-
             impacts = {}
             improvements = {}
             IMPROVE_STEP = 10
@@ -224,44 +204,41 @@ with col1:
                     gain = model_pipeline.predict(temp2)[0] - base_pred
                     if gain > 0: improvements[attr] = gain
 
-            with st.expander("✅ מהם הגורמים העיקריים לשווי הגבוה?", expanded=True):
-                sorted_impacts = sorted(impacts.items(), key=lambda x: x[1], reverse=True)[:3]
-                for attr, val in sorted_impacts:
-                    st.write(f"**{attr}**: תורם כ-€{val / 1e6:.1f}M לשווי")
-                    st.progress(min(100, int((user_input_dict[attr] / 100) * 100)))
+            # INSIGHTS FOR CSV & UI
+            top_boosters = sorted(impacts.items(), key=lambda x: x[1], reverse=True)[:3]
+            top_suggests = sorted(improvements.items(), key=lambda x: x[1], reverse=True)[:3]
 
-            with st.expander("🚀 איפה כדאי להשתפר? (המלצות המערכת)"):
-                sorted_improvements = sorted(improvements.items(), key=lambda x: x[1], reverse=True)[:3]
-                for attr, val in sorted_improvements:
-                    st.info(f"💡 שיפור של **{IMPROVE_STEP} נקודות** ב-**{attr}** יעלה את השווי ב-€{val / 1e6:.1f}M")
+            with st.expander("✅ Main Value Drivers", expanded=True):
+                for attr, val in top_boosters:
+                    st.write(f"**{attr}**: adds approx €{val / 1e6:.1f}M to value")
+                    st.progress(min(100, int(user_input_dict[attr])))
+
+            with st.expander("🚀 Recommendations to Improve"):
+                for attr, val in top_suggests:
+                    st.info(f"💡 Improving **{attr}** by {IMPROVE_STEP} points increases value by €{val / 1e6:.1f}M")
 
             st.write("---")
             u_vals = [in_sprint, (in_fin + in_shot) / 2, (in_pass + in_vis) / 2, in_drib, (in_tack + in_int) / 2,
                       (in_str + in_stam) / 2]
             cats = ['Pace', 'Shooting', 'Passing', 'Dribbling', 'Defense', 'Physical']
-
-            c_vals = None
-            c_name = ""
-            if ref_player != "ללא":
-                c_vals = get_player_stats_from_db(ref_player)
-                c_name = ref_player
-
-            fig = create_radar_comparison(cats, u_vals, c_vals, input_name, c_name)
+            c_vals = get_player_stats_from_db(ref_player) if ref_player != "None" else None
+            fig = create_radar_comparison(cats, u_vals, c_vals, input_name, ref_player)
             st.pyplot(fig)
 
         except Exception as e:
-            st.error(f"שגיאה בחיזוי: {e}")
+            st.error(f"Prediction Error: {e}")
 
 with col2:
     if st.session_state.get('run'):
-        st.subheader(f"🔎 דוח סקאוטינג: {input_name}")
-        st.info("💡 לחץ על שורה בטבלה כדי לבצע השוואה גרפית מיידית!")
+        st.subheader(f"🔎 Scouting Report: {input_name}")
+        st.info("💡 Select a row to compare stats instantly!")
 
         try:
             pool = players_db[players_db['Best Position'] == input_position].copy()
             if pool.empty:
-                st.warning("לא נמצאו שחקנים בעמדה זו.")
+                st.warning("No players found in this position.")
             else:
+                # Similarity Engine (CBF)
                 pool['sim_score'] = 100 - (
                         abs(pool['Potential'] - input_potential) * 1.0 +
                         abs(pool.get('SprintSpeed', 70) - in_sprint) * 0.5 +
@@ -270,116 +247,89 @@ with col2:
                         abs(pool.get('StandingTackle', 40) - in_tack) * 0.5
                 ) / 3.0
 
-                # --- טבלה 1: ילדי פלא ---
-                st.markdown("### 🎣 1. איתור כישרונות (Wonderkids)")
-                similar_pool = pool[pool['sim_score'] > 70].copy()
-                wonderkids = similar_pool[similar_pool['Age'] <= input_age].sort_values(['Age', 'Potential'],
-                                                                                        ascending=[True, False]).head(
-                    10)
-
+                # TABLE 1: Wonderkids (Young & High Potential)
+                st.markdown("### 🎣 1. Next-Gen Talents (Younger Targets)")
+                wonderkids = pool[pool['Age'] < input_age].sort_values(['sim_score', 'Potential'],
+                                                                       ascending=False).head(10)
                 selected_wonder = st.dataframe(
                     wonderkids[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']],
                     column_config={
-                        "Value_EUR": st.column_config.NumberColumn("שווי", format="€%d"),
-                        "sim_score": st.column_config.ProgressColumn("דמיון", format="%d%%", min_value=0, max_value=100)
+                        "Value_EUR": st.column_config.NumberColumn("Value", format="€%d"),
+                        "sim_score": st.column_config.ProgressColumn("Similarity", format="%d%%", min_value=0,
+                                                                     max_value=100)
                     },
-                    on_select="rerun",
-                    selection_mode="single-row",
-                    use_container_width=True,
-                    key="table_wonder"
+                    on_select="rerun", selection_mode="single-row", use_container_width=True, key="table_wonder"
                 )
-
                 if len(selected_wonder.selection.rows) > 0:
-                    idx = selected_wonder.selection.rows[0]
-                    p_name = wonderkids.iloc[idx]['Name']
-                    st.markdown(f"#### 📊 השוואה מול: {p_name}")
-                    t_vals = get_player_stats_from_db(p_name)
-                    fig_comp = create_radar_comparison(cats, u_vals, t_vals, input_name, p_name)
-                    st.pyplot(fig_comp)
+                    p_name = wonderkids.iloc[selected_wonder.selection.rows[0]]['Name']
+                    st.pyplot(
+                        create_radar_comparison(cats, u_vals, get_player_stats_from_db(p_name), input_name, p_name))
 
                 st.write("---")
 
-                # --- טבלה 2: מציאות ---
-                st.markdown("### 💰 2. הזדמנויות בשוק (Bargains)")
-                bargains = similar_pool[similar_pool['Value_EUR'] < base_pred * 0.9].sort_values('Potential',
-                                                                                                 ascending=False).head(
-                    5)
-
-                selected_bargain = st.dataframe(
-                    bargains[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']],
+                # TABLE 2: Pure General Similarity (Regardless of Age/Value)
+                st.markdown("### 🧬 2. Tactical Soulmates (General Similarity)")
+                general_matches = pool.sort_values('sim_score', ascending=False).head(10)
+                selected_gen = st.dataframe(
+                    general_matches[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']],
                     column_config={
-                        "Value_EUR": st.column_config.NumberColumn("מחיר שוק", format="€%d"),
-                        "sim_score": st.column_config.ProgressColumn("דמיון", format="%d%%", min_value=0, max_value=100)
+                        "Value_EUR": st.column_config.NumberColumn("Value", format="€%d"),
+                        "sim_score": st.column_config.ProgressColumn("Similarity", format="%d%%", min_value=0,
+                                                                     max_value=100)
                     },
-                    on_select="rerun",
-                    selection_mode="single-row",
-                    use_container_width=True,
-                    key="table_bargain"
+                    on_select="rerun", selection_mode="single-row", use_container_width=True, key="table_gen"
                 )
-
-                if len(selected_bargain.selection.rows) > 0:
-                    idx = selected_bargain.selection.rows[0]
-                    p_name = bargains.iloc[idx]['Name']
-                    st.markdown(f"#### 📊 השוואה מול המציאה: {p_name}")
-                    t_vals = get_player_stats_from_db(p_name)
-                    fig_comp2 = create_radar_comparison(cats, u_vals, t_vals, input_name, p_name)
-                    st.pyplot(fig_comp2)
+                if len(selected_gen.selection.rows) > 0:
+                    p_name = general_matches.iloc[selected_gen.selection.rows[0]]['Name']
+                    st.pyplot(
+                        create_radar_comparison(cats, u_vals, get_player_stats_from_db(p_name), input_name, p_name))
 
                 # =========================================================
-                # 6. ייצוא דוח סקאוטינג מאוחד (CSV) - הועבר מחוץ לתנאי הבחירה
+                # 6. CSV EXPORT - STRUCTURED TABLES
                 # =========================================================
                 st.write("---")
-                st.subheader("📥 ייצוא דוח סקאוטינג מאוחד")
-
+                st.subheader("📥 Export Final Scouting Report")
                 try:
-                    # יצירת תוכן ה-CSV כטקסט
-                    report_lines = []
-                    report_lines.append("--- TARGET PLAYER DATA ---")
-                    report_lines.append(f"Name,{input_name}")
-                    report_lines.append(f"Position,{input_position}")
-                    report_lines.append(f"Predicted Market Value,EUR {base_pred:,.0f}")
-                    report_lines.append("")
+                    # BLOCK 1: Horizontal Target Player Info
+                    input_row = pd.DataFrame([user_input_dict])
+                    input_row.insert(0, 'Player Name', input_name)
 
-                    # הוספת נתוני הסליידרים
-                    for attr, val in user_input_dict.items():
-                        report_lines.append(f"{attr},{val}")
+                    # BLOCK 2: Predicted Value (Single line)
+                    value_df = pd.DataFrame([{'Category': 'Predicted Market Value', 'Amount': f"€{base_pred:,.0f}"}])
 
-                    report_lines.append("")
-                    report_lines.append("--- 1. WONDERKIDS (TOP MATCHES) ---")
-                    if not wonderkids.empty:
-                        report_lines.append(
-                            wonderkids[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']].to_csv(index=False))
-                    else:
-                        report_lines.append("No players found")
+                    # BLOCK 3: AI Insights & Recommendations
+                    insight_list = []
+                    for attr, val in top_boosters: insight_list.append(
+                        {'Type': 'Strength', 'Feature': attr, 'Impact': f"Adds €{val / 1e6:.1f}M"})
+                    for attr, val in top_suggests: insight_list.append(
+                        {'Type': 'Improvement', 'Feature': attr, 'Impact': f"Gain €{val / 1e6:.1f}M"})
+                    insight_df = pd.DataFrame(insight_list)
 
-                    report_lines.append("")
-                    report_lines.append("--- 2. BARGAINS (VALUE OPPORTUNITIES) ---")
-                    if not bargains.empty:
-                        report_lines.append(
-                            bargains[['Name', 'Age', 'Value_EUR', 'Potential', 'sim_score']].to_csv(index=False))
-                    else:
-                        report_lines.append("No players found")
+                    # Build CSV with logical breaks
+                    csv_header = "--- TARGET PLAYER ATTRIBUTES ---\n"
+                    csv_input = input_row.to_csv(index=False)
+                    csv_val = "\n--- FINANCIAL PREDICTION ---\n" + value_df.to_csv(index=False)
+                    csv_ins = "\n--- AI INSIGHTS & RECOMMENDATIONS ---\n" + insight_df.to_csv(index=False)
+                    csv_w = "\n--- 1. NEXT-GEN TALENTS REPORT ---\n" + wonderkids[
+                        ['Name', 'Age', 'Club', 'Value_EUR', 'Potential', 'sim_score']].to_csv(index=False)
+                    csv_g = "\n--- 2. TACTICAL SOULMATES REPORT ---\n" + general_matches[
+                        ['Name', 'Age', 'Club', 'Value_EUR', 'Potential', 'sim_score']].to_csv(index=False)
 
-                    full_csv_text = "\n".join(report_lines)
-                    csv_bytes = full_csv_text.encode('utf-8-sig')
+                    full_csv = csv_header + csv_input + csv_val + csv_ins + csv_w + csv_g
 
                     st.download_button(
-                        label="📄 הורד דוח סקאוטינג מלא (CSV)",
-                        data=csv_bytes,
-                        file_name=f"Full_Scouting_Report_{input_name}.csv",
-                        mime="text/csv",
-                        use_container_width=True
+                        label="📄 Download Comprehensive CSV Report",
+                        data=full_csv.encode('utf-8-sig'),
+                        file_name=f"FIFA_Scout_Report_{input_name}.csv",
+                        mime="text/csv", use_container_width=True
                     )
-                    st.caption("הדוח כולל את נתוני המטרה, ילדי פלא והזדמנויות שוק.")
-
                 except Exception as e:
-                    st.error(f"שגיאה ביצירת הדוח: {e}")
+                    st.error(f"Error generating export: {e}")
 
         except Exception as e:
-            st.error(f"שגיאה במנוע הסקאוטינג: {e}")
-
+            st.error(f"Scouting Engine Error: {e}")
     else:
-        st.write("### ברוכים הבאים")
-        st.write("הזן נתונים ולחץ על הכפתור כדי להתחיל.")
+        st.write("### Welcome to FIFA AI Scout Pro")
+        st.write("Input player data on the left and click the launch button to start the analysis.")
         st.image("https://upload.wikimedia.org/wikipedia/commons/a/ad/Football_in_Bloomington%2C_Indiana%2C_1996.jpg",
                  use_container_width=True)
