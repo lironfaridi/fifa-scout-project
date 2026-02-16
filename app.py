@@ -4,6 +4,7 @@ import joblib
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+import os
 
 # =========================================================
 # 1. הגדרות עמוד ועיצוב
@@ -39,14 +40,20 @@ st.markdown("""
 # =========================================================
 @st.cache_resource
 def load_all_data():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     try:
-        model = joblib.load('fifa_model_pipeline.pkl')
-        features = joblib.load('model_features.pkl')
-        db = joblib.load('fifa_players_lite.pkl')
+        model_path = os.path.join(current_dir, 'fifa_model_pipeline.pkl')
+        features_path = os.path.join(current_dir, 'model_features.pkl')
+        db_path = os.path.join(current_dir, 'fifa_players_lite.pkl')
+
+        model = joblib.load(model_path)
+        features = joblib.load(features_path)
+        db = joblib.load(db_path)
         return model, features, db
     except FileNotFoundError:
         st.error("❌ שגיאה: קבצי המודל (.pkl) חסרים בתיקייה.")
         st.stop()
+
 
 model_pipeline, model_features, players_db = load_all_data()
 
@@ -100,7 +107,6 @@ def create_radar_comparison(categories, user_vals, comp_vals=None, user_name="My
     ax.plot(angles, vals, linewidth=2, linestyle='solid', label=user_name, color='#1f77b4')
     ax.fill(angles, vals, '#1f77b4', alpha=0.1)
 
-    # הוספת מספרים לגרף של המשתמש
     for ang, val in zip(angles[:-1], user_vals):
         ax.text(ang, val + 12, str(int(val)), ha='center', va='center', fontsize=9, fontweight='bold', color='#1f77b4')
 
@@ -163,7 +169,6 @@ st.sidebar.markdown("### 🛡️ הגנה")
 in_tack = st.sidebar.slider("תיקול עומד", 10, 99, 40, key='key_tack')
 in_int = st.sidebar.slider("חטיפות", 10, 99, 40, key='key_int')
 
-# מילון נתונים למודל (שמות תואמים בדיוק לקלט)
 user_input_dict = {
     'Age': input_age, 'Potential': input_potential, 'Best Position': input_position, 'Preferred Foot': input_foot,
     'BallControl': in_ball, 'Dribbling': in_drib, 'Composure': in_comp, 'Reactions': in_reac,
@@ -187,7 +192,6 @@ with col1:
         st.session_state['run'] = True
 
     if st.session_state.get('run'):
-        # --- 1. חיזוי שווי ---
         input_df = pd.DataFrame(columns=model_features)
         input_df.loc[0] = 0
         for col, val in user_input_dict.items():
@@ -195,51 +199,42 @@ with col1:
 
         try:
             base_pred = model_pipeline.predict(input_df)[0]
-            val_m = base_pred / 1_000_000
+            val_m = max(0, base_pred / 1_000_000)
 
             st.success("שווי שוק מוערך:")
             st.metric(label="Market Value", value=f"€{val_m:.2f} M")
 
-            # --- 2. ניתוח רגישות (כפול!) ---
             st.markdown("### 📊 ניתוח גורמים (AI Insights)")
-
-            # רשימת פיצ'רים לבדיקה
             check_list = ['SprintSpeed', 'Finishing', 'ShotPower', 'Dribbling', 'StandingTackle', 'Potential',
                           'BallControl', 'ShortPassing']
 
-            impacts = {}  # מה תורם כרגע
-            improvements = {}  # איפה כדאי להשתפר
+            impacts = {}
+            improvements = {}
             IMPROVE_STEP = 10
 
             for attr in check_list:
-                # 1. חישוב תרומה נוכחית (כמה הערך יורד אם מורידים את הציון)
                 temp = input_df.copy()
                 temp.at[0, attr] -= 10
                 loss = base_pred - model_pipeline.predict(temp)[0]
                 if loss > 0: impacts[attr] = loss
 
-                # 2. חישוב פוטנציאל שיפור (כמה הערך עולה אם מוסיפים לציון)
                 temp2 = input_df.copy()
-                curr_val = temp2.at[0, attr]
-                if curr_val <= 89:  # לא בודקים מעל 99
+                if temp2.at[0, attr] <= 89:
                     temp2.at[0, attr] += IMPROVE_STEP
                     gain = model_pipeline.predict(temp2)[0] - base_pred
                     if gain > 0: improvements[attr] = gain
 
-            # הצגה 1: החוזקות של השחקן
             with st.expander("✅ מהם הגורמים העיקריים לשווי הגבוה?", expanded=True):
                 sorted_impacts = sorted(impacts.items(), key=lambda x: x[1], reverse=True)[:3]
                 for attr, val in sorted_impacts:
                     st.write(f"**{attr}**: תורם כ-€{val / 1e6:.1f}M לשווי")
                     st.progress(min(100, int((user_input_dict[attr] / 100) * 100)))
 
-            # הצגה 2: המלצות לשיפור
             with st.expander("🚀 איפה כדאי להשתפר? (המלצות המערכת)"):
                 sorted_improvements = sorted(improvements.items(), key=lambda x: x[1], reverse=True)[:3]
                 for attr, val in sorted_improvements:
                     st.info(f"💡 שיפור של **{IMPROVE_STEP} נקודות** ב-**{attr}** יעלה את השווי ב-€{val / 1e6:.1f}M")
 
-            # --- 3. גרף רדאר ראשי ---
             st.write("---")
             u_vals = [in_sprint, (in_fin + in_shot) / 2, (in_pass + in_vis) / 2, in_drib, (in_tack + in_int) / 2,
                       (in_str + in_stam) / 2]
@@ -267,7 +262,6 @@ with col2:
             if pool.empty:
                 st.warning("לא נמצאו שחקנים בעמדה זו.")
             else:
-                # חישוב דמיון
                 pool['sim_score'] = 100 - (
                         abs(pool['Potential'] - input_potential) * 1.0 +
                         abs(pool.get('SprintSpeed', 70) - in_sprint) * 0.5 +
@@ -276,7 +270,6 @@ with col2:
                         abs(pool.get('StandingTackle', 40) - in_tack) * 0.5
                 ) / 3.0
 
-                # --- טבלה 1: ילדי הפלא (Wonderkids) ---
                 st.markdown("### 🎣 1. איתור כישרונות (Wonderkids)")
                 similar_pool = pool[pool['sim_score'] > 70].copy()
                 wonderkids = similar_pool[similar_pool['Age'] <= input_age].sort_values(['Age', 'Potential'],
@@ -295,20 +288,14 @@ with col2:
                     key="table_wonder"
                 )
 
-                # לוגיקה לבחירה מטבלה 1
                 if len(selected_wonder.selection.rows) > 0:
                     idx = selected_wonder.selection.rows[0]
                     p_name = wonderkids.iloc[idx]['Name']
-
                     st.markdown(f"#### 📊 השוואה מול: {p_name}")
                     t_vals = get_player_stats_from_db(p_name)
                     fig_comp = create_radar_comparison(cats, u_vals, t_vals, input_name, p_name)
                     st.pyplot(fig_comp)
 
-                    with st.expander(f"נתונים מלאים: {p_name}"):
-                        st.write(players_db[players_db['Name'] == p_name].iloc[0])
-
-                # --- טבלה 2: מציאות (Bargains) ---
                 st.write("---")
                 st.markdown("### 💰 2. הזדמנויות בשוק (Bargains)")
                 bargains = similar_pool[similar_pool['Value_EUR'] < base_pred * 0.9].sort_values('Potential',
@@ -327,20 +314,42 @@ with col2:
                     key="table_bargain"
                 )
 
-                # לוגיקה לבחירה מטבלה 2 (חדש!)
                 if len(selected_bargain.selection.rows) > 0:
                     idx = selected_bargain.selection.rows[0]
                     p_name = bargains.iloc[idx]['Name']
-
                     st.markdown(f"#### 📊 השוואה מול המציאה: {p_name}")
                     t_vals = get_player_stats_from_db(p_name)
                     fig_comp2 = create_radar_comparison(cats, u_vals, t_vals, input_name, p_name)
                     st.pyplot(fig_comp2)
 
-                    with st.expander(f"נתונים מלאים: {p_name}"):
-                        st.write(players_db[players_db['Name'] == p_name].iloc[0])
+                # =========================================================
+                # 6. הוספת כפתור ייצוא דו"ח (Export)
+                # =========================================================
+                st.write("---")
+                st.subheader("📥 ייצוא דו"
+                ח
+                סקאוטינג
+                ")
 
-        except Exception as e:
+                try:
+                    if not wonderkids.empty or not bargains.empty:
+                        export_df = pd.concat([wonderkids, bargains]).drop_duplicates(subset=['Name'])
+                        csv_data = export_df.to_csv(index=False).encode('utf-8-sig')
+
+                        st.download_button(
+                            label="📄 הורד דו"
+                        ח
+                        שחקנים(CSV)
+                        ",
+                        data = csv_data,
+                               file_name = f"Scouting_Report_{input_name}_{input_position}.csv",
+                                           mime = "text/csv",
+                                                  use_container_width = True
+                        )
+                        except:
+                        pass
+
+            except Exception as e:
             st.error(f"שגיאה במנוע הסקאוטינג: {e}")
 
     else:
