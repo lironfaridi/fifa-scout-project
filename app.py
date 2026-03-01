@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import os
+import time
 
 # =========================================================
 # 1. PAGE CONFIG & UI STYLING
@@ -80,7 +81,6 @@ def full_reset():
 
 # Callback to safely clear table selection when dropdown changes
 def on_dropdown_change():
-    # Fix: Use 'del' instead of assignment to avoid StreamlitValueAssignmentNotAllowedError
     if 'wk_table' in st.session_state:
         del st.session_state['wk_table']
     if 'sm_table' in st.session_state:
@@ -158,16 +158,18 @@ st.sidebar.title("🛠️ Scouting Form")
 # --- COMPARISON DROPDOWN ---
 st.sidebar.markdown("### 🏆 Comparison Benchmark")
 star_options = ["None"] + sorted(players_db['Name'].unique().tolist())
-# on_change triggers the safe clear function
-star_name = st.sidebar.selectbox("Compare with Real Player:", star_options, index=0, on_change=on_dropdown_change)
+star_name = st.sidebar.selectbox("Compare with Real Player:", star_options, index=0, on_change=on_dropdown_change,
+                                 help="Select a player from the database to compare against your custom profile on the radar chart.")
 st.sidebar.markdown("---")
 
 # Basic Info
 st.sidebar.subheader("👤 Player Profile")
 name_input = st.sidebar.text_input("Full Name", "New Prospect")
 age_input = st.sidebar.slider("Age", 15, 45, 22)
-wk_max_age = st.sidebar.slider("Max Age for Wonderkids", 16, 24, 22)  # NEW: Max age slider for Wonderkids
-pot_input = st.sidebar.slider("Potential", 40, 99, 85)
+wk_max_age = st.sidebar.slider("Max Age for Wonderkids", 16, 24, 22,
+                               help="Set the maximum age limit for the Next-Gen Talents discovery table.")
+pot_input = st.sidebar.slider("Potential", 40, 99, 85,
+                              help="The maximum overall rating the player is projected to reach.")
 pos_input = st.sidebar.selectbox("Best Position", ['ST', 'LW', 'RW', 'CAM', 'CM', 'CDM', 'CB', 'LB', 'RB', 'GK'])
 foot_input = st.sidebar.radio("Preferred Foot", ["Right", "Left"], horizontal=True)
 
@@ -197,7 +199,7 @@ with st.sidebar.expander("🛡️ DEFENSE & PASSING", expanded=False):
 
 # --- SECTION: ADVANCED ---
 with st.sidebar.expander("💎 ADVANCED PARAMETERS", expanded=False):
-    in_comp = st.slider("Composure", 10, 99, 75)
+    in_comp = st.slider("Composure", 10, 99, 75, help="How well the player performs under pressure.")
     in_long_p = st.slider("Long Passing", 10, 99, 65)
     in_long_s = st.slider("Long Shots", 10, 99, 60)
     in_agg = st.slider("Aggression", 10, 99, 60)
@@ -233,9 +235,13 @@ with action_container:
 
     with col_act2:
         if st.button("🚀 LAUNCH ANALYSIS", type="primary"):
+            # UI Enhancement: Spinner and Toast
+            with st.spinner('Running AI Scouting Engine & Valuations...'):
+                time.sleep(0.5)  # Brief pause for effect
+            st.toast('Analysis Complete! 📊')
+
             st.session_state['run'] = True
             st.session_state['selected_comparison'] = None
-            # Fix: safely delete keys instead of setting to empty dict
             if 'wk_table' in st.session_state: del st.session_state['wk_table']
             if 'sm_table' in st.session_state: del st.session_state['sm_table']
 
@@ -252,24 +258,19 @@ if st.session_state.get('run'):
             abs(pos_pool.get('ShortPassing', 70) - in_pass) * 0.5
     )
 
-    # NEW: Filter Wonderkids by the slider value instead of the player's age
     wonderkids = pos_pool[pos_pool['Age'] <= wk_max_age].sort_values('sim_score', ascending=False).head(5)
     matches = pos_pool.sort_values('sim_score', ascending=False).head(5)
 
-    # Determine Comparison Target
     comp_vals = None
     comp_name = "None"
     comp_source_msg = ""
-
     sel_player_name = None
 
-    # Check Wonderkids Table State
     if 'wk_table' in st.session_state and st.session_state['wk_table'].get('selection') and \
             st.session_state['wk_table']['selection'].get('rows'):
         idx = st.session_state['wk_table']['selection']['rows'][0]
         sel_player_name = wonderkids.iloc[idx]['Name']
 
-    # Check Soulmates Table State
     elif 'sm_table' in st.session_state and st.session_state['sm_table'].get('selection') and \
             st.session_state['sm_table']['selection'].get('rows'):
         idx = st.session_state['sm_table']['selection']['rows'][0]
@@ -330,13 +331,19 @@ if st.session_state.get('run'):
         st.subheader("💡 AI Scout Insights")
         with st.container(border=True):
             st.markdown("**✅ Top Value Contributors:**")
-            for dr_name, dr_val in top_drivers:
-                st.write(f"- **{dr_name}**: Adds ~**€{dr_val:.1f}M**")
+            # UI Enhancement: Displaying Drivers using metrics
+            col_d1, col_d2, col_d3 = st.columns(3)
+            if len(top_drivers) > 0: col_d1.metric(top_drivers[0][0], f"~€{top_drivers[0][1]:.1f}M")
+            if len(top_drivers) > 1: col_d2.metric(top_drivers[1][0], f"~€{top_drivers[1][1]:.1f}M")
+            if len(top_drivers) > 2: col_d3.metric(top_drivers[2][0], f"~€{top_drivers[2][1]:.1f}M")
 
             st.markdown("---")
             st.markdown("**🚀 Growth Opportunities (+10 pts):**")
-            for r_name, r_gain in top_recs:
-                st.write(f"- **{r_name}**: Adds **€{r_gain:.1f}M**")
+            # UI Enhancement: Displaying Recommendations with visual deltas
+            col_r1, col_r2, col_r3 = st.columns(3)
+            if len(top_recs) > 0: col_r1.metric(top_recs[0][0], f"Target", delta=f"€{top_recs[0][1]:.1f}M")
+            if len(top_recs) > 1: col_r2.metric(top_recs[1][0], f"Target", delta=f"€{top_recs[1][1]:.1f}M")
+            if len(top_recs) > 2: col_r3.metric(top_recs[2][0], f"Target", delta=f"€{top_recs[2][1]:.1f}M")
 
         # --- RADAR CHART ---
         st.subheader("📊 Comparison Radar")
@@ -355,9 +362,8 @@ if st.session_state.get('run'):
         display_cols = ['Name', 'Age', 'Value_EUR', 'sim_score']
 
         # --- TABLE 1: WONDERKIDS ---
-        st.markdown(f"### 🎣 1. Next-Gen Talents (U{wk_max_age})")
+        st.markdown(f"### 🎣 1. High-Potential Prospects (U{wk_max_age})")
 
-        # Apply Styler for gradient coloring
         if not wonderkids.empty:
             wk_styled = wonderkids[display_cols].style.background_gradient(
                 subset=['sim_score'], cmap='RdYlGn', vmin=70, vmax=100
@@ -374,9 +380,8 @@ if st.session_state.get('run'):
         )
 
         # --- TABLE 2: SOULMATES ---
-        st.markdown("### 🧬 2. Tactical Soulmates")
+        st.markdown("### 🧬 2. Closest Tactical Profiles")
 
-        # Apply Styler for gradient coloring
         if not matches.empty:
             sm_styled = matches[display_cols].style.background_gradient(
                 subset=['sim_score'], cmap='RdYlGn', vmin=70, vmax=100
@@ -430,10 +435,10 @@ if st.session_state.get('run'):
             csv_final += "\n--- SECTION 3: AI INSIGHTS & RECOMMENDATIONS ---\n"
             csv_final += df_insights.to_csv(index=False)
 
-            csv_final += "\n--- SECTION 4: WONDERKIDS (FULL STATS) ---\n"
+            csv_final += "\n--- SECTION 4: HIGH-POTENTIAL PROSPECTS (FULL STATS) ---\n"
             csv_final += wonderkids[full_cols].to_csv(index=False)
 
-            csv_final += "\n--- SECTION 5: SOULMATES (FULL STATS) ---\n"
+            csv_final += "\n--- SECTION 5: CLOSEST TACTICAL PROFILES (FULL STATS) ---\n"
             csv_final += matches[full_cols].to_csv(index=False)
 
             st.download_button(
