@@ -50,7 +50,7 @@ def load_all_data():
     try:
         model_path = os.path.join(current_dir, 'fifa_model_pipeline.pkl')
         features_path = os.path.join(current_dir, 'model_features.pkl')
-        # החזרנו ל-LITE!
+        # LITE DB
         db_path = os.path.join(current_dir, 'fifa_players_lite.pkl')
         scaler_path = os.path.join(current_dir, 'cbf_scaler.pkl')
 
@@ -257,7 +257,9 @@ if st.session_state.get('run'):
 
     # Build the custom player vector precisely matching CBF features
     user_cbf_df = pd.DataFrame(columns=cbf_features_list)
-    user_cbf_df.loc[0] = 60  # Default baseline for skills not explicitly detailed in sliders
+
+    # *** CRITICAL FIX: Fill missing attributes with DB Mean ***
+    user_cbf_df.loc[0] = players_db[cbf_features_list].mean()
 
     for k, v in input_dict.items():
         if k in user_cbf_df.columns:
