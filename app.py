@@ -158,18 +158,15 @@ st.sidebar.title("🛠️ Scouting Form")
 # --- COMPARISON DROPDOWN ---
 st.sidebar.markdown("### 🏆 Comparison Benchmark")
 star_options = ["None"] + sorted(players_db['Name'].unique().tolist())
-star_name = st.sidebar.selectbox("Compare with Real Player:", star_options, index=0, on_change=on_dropdown_change,
-                                 help="Select a player from the database to compare against your custom profile on the radar chart.")
+star_name = st.sidebar.selectbox("Compare with Real Player:", star_options, index=0, on_change=on_dropdown_change, help="Select a player from the database to compare against your custom profile on the radar chart.")
 st.sidebar.markdown("---")
 
 # Basic Info
 st.sidebar.subheader("👤 Player Profile")
 name_input = st.sidebar.text_input("Full Name", "New Prospect")
 age_input = st.sidebar.slider("Age", 15, 45, 22)
-wk_max_age = st.sidebar.slider("Max Age for Wonderkids", 16, 24, 22,
-                               help="Set the maximum age limit for the Next-Gen Talents discovery table.")
-pot_input = st.sidebar.slider("Potential", 40, 99, 85,
-                              help="The maximum overall rating the player is projected to reach.")
+wk_max_age = st.sidebar.slider("Max Age for Wonderkids", 16, 24, 22, help="Set the maximum age limit for the Next-Gen Talents discovery table.")
+pot_input = st.sidebar.slider("Potential", 40, 99, 85, help="The maximum overall rating the player is projected to reach.")
 pos_input = st.sidebar.selectbox("Best Position", ['ST', 'LW', 'RW', 'CAM', 'CM', 'CDM', 'CB', 'LB', 'RB', 'GK'])
 foot_input = st.sidebar.radio("Preferred Foot", ["Right", "Left"], horizontal=True)
 
@@ -235,9 +232,8 @@ with action_container:
 
     with col_act2:
         if st.button("🚀 LAUNCH ANALYSIS", type="primary"):
-            # UI Enhancement: Spinner and Toast
             with st.spinner('Running AI Scouting Engine & Valuations...'):
-                time.sleep(0.5)  # Brief pause for effect
+                time.sleep(0.5)
             st.toast('Analysis Complete! 📊')
 
             st.session_state['run'] = True
@@ -331,7 +327,6 @@ if st.session_state.get('run'):
         st.subheader("💡 AI Scout Insights")
         with st.container(border=True):
             st.markdown("**✅ Top Value Contributors:**")
-            # UI Enhancement: Displaying Drivers using metrics
             col_d1, col_d2, col_d3 = st.columns(3)
             if len(top_drivers) > 0: col_d1.metric(top_drivers[0][0], f"~€{top_drivers[0][1]:.1f}M")
             if len(top_drivers) > 1: col_d2.metric(top_drivers[1][0], f"~€{top_drivers[1][1]:.1f}M")
@@ -339,7 +334,6 @@ if st.session_state.get('run'):
 
             st.markdown("---")
             st.markdown("**🚀 Growth Opportunities (+10 pts):**")
-            # UI Enhancement: Displaying Recommendations with visual deltas
             col_r1, col_r2, col_r3 = st.columns(3)
             if len(top_recs) > 0: col_r1.metric(top_recs[0][0], f"Target", delta=f"€{top_recs[0][1]:.1f}M")
             if len(top_recs) > 1: col_r2.metric(top_recs[1][0], f"Target", delta=f"€{top_recs[1][1]:.1f}M")
@@ -348,7 +342,12 @@ if st.session_state.get('run'):
         # --- RADAR CHART ---
         st.subheader("📊 Comparison Radar")
         if comp_source_msg:
-            st.info(comp_source_msg)
+            # Check if the compared player has a real market value in the DB to display
+            if comp_name in players_db['Name'].values:
+                real_val = players_db[players_db['Name'] == comp_name]['Value_EUR'].values[0]
+                st.info(f"{comp_source_msg} | **Real Market Value: €{real_val / 1e6:.1f}M**")
+            else:
+                st.info(comp_source_msg)
 
         radar_labels = ['Pace', 'Shooting', 'Passing', 'Dribbling', 'Defense', 'Physical']
         v1 = get_radar_values(input_dict)
