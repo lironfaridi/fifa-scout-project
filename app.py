@@ -50,7 +50,7 @@ def load_all_data():
     try:
         model_path = os.path.join(current_dir, 'fifa_model_pipeline.pkl')
         features_path = os.path.join(current_dir, 'model_features.pkl')
-        db_path = os.path.join(current_dir, 'fifa_players_db.pkl')
+        db_path = os.path.join(current_dir, 'fifa_players_lite.pkl')
         scaler_path = os.path.join(current_dir, 'cbf_scaler.pkl')
 
         model = joblib.load(model_path)
