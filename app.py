@@ -166,6 +166,7 @@ st.sidebar.markdown("---")
 st.sidebar.subheader("👤 Player Profile")
 name_input = st.sidebar.text_input("Full Name", "New Prospect")
 age_input = st.sidebar.slider("Age", 15, 45, 22)
+wk_max_age = st.sidebar.slider("Max Age for Wonderkids", 16, 24, 22)  # NEW: Max age slider for Wonderkids
 pot_input = st.sidebar.slider("Potential", 40, 99, 85)
 pos_input = st.sidebar.selectbox("Best Position", ['ST', 'LW', 'RW', 'CAM', 'CM', 'CDM', 'CB', 'LB', 'RB', 'GK'])
 foot_input = st.sidebar.radio("Preferred Foot", ["Right", "Left"], horizontal=True)
@@ -251,7 +252,8 @@ if st.session_state.get('run'):
             abs(pos_pool.get('ShortPassing', 70) - in_pass) * 0.5
     )
 
-    wonderkids = pos_pool[pos_pool['Age'] < age_input].sort_values('sim_score', ascending=False).head(5)
+    # NEW: Filter Wonderkids by the slider value instead of the player's age
+    wonderkids = pos_pool[pos_pool['Age'] <= wk_max_age].sort_values('sim_score', ascending=False).head(5)
     matches = pos_pool.sort_values('sim_score', ascending=False).head(5)
 
     # Determine Comparison Target
@@ -353,9 +355,18 @@ if st.session_state.get('run'):
         display_cols = ['Name', 'Age', 'Value_EUR', 'sim_score']
 
         # --- TABLE 1: WONDERKIDS ---
-        st.markdown("### 🎣 1. Next-Gen Talents")
+        st.markdown(f"### 🎣 1. Next-Gen Talents (U{wk_max_age})")
+
+        # Apply Styler for gradient coloring
+        if not wonderkids.empty:
+            wk_styled = wonderkids[display_cols].style.background_gradient(
+                subset=['sim_score'], cmap='RdYlGn', vmin=70, vmax=100
+            ).format({'Value_EUR': '€{:,.0f}', 'sim_score': '{:.1f}'})
+        else:
+            wk_styled = wonderkids[display_cols]
+
         st.dataframe(
-            wonderkids[display_cols],
+            wk_styled,
             use_container_width=True,
             on_select="rerun",
             selection_mode="single-row",
@@ -364,8 +375,17 @@ if st.session_state.get('run'):
 
         # --- TABLE 2: SOULMATES ---
         st.markdown("### 🧬 2. Tactical Soulmates")
+
+        # Apply Styler for gradient coloring
+        if not matches.empty:
+            sm_styled = matches[display_cols].style.background_gradient(
+                subset=['sim_score'], cmap='RdYlGn', vmin=70, vmax=100
+            ).format({'Value_EUR': '€{:,.0f}', 'sim_score': '{:.1f}'})
+        else:
+            sm_styled = matches[display_cols]
+
         st.dataframe(
-            matches[display_cols],
+            sm_styled,
             use_container_width=True,
             on_select="rerun",
             selection_mode="single-row",
