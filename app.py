@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import math
 import os
 import time
+from sklearn.metrics.pairwise import cosine_similarity  # <-- NEW: Import the real AI math engine
 
 # =========================================================
 # 1. PAGE CONFIG & UI STYLING
@@ -49,18 +50,23 @@ def load_all_data():
     try:
         model_path = os.path.join(current_dir, 'fifa_model_pipeline.pkl')
         features_path = os.path.join(current_dir, 'model_features.pkl')
-        db_path = os.path.join(current_dir, 'fifa_players_lite.pkl')
+        db_path = os.path.join(current_dir, 'fifa_players_db.pkl')  # <-- UPDATED to your real DB
+        matrix_path = os.path.join(current_dir, 'cbf_matrix_scaled.pkl')  # <-- NEW
+        scaler_path = os.path.join(current_dir, 'cbf_scaler.pkl')  # <-- NEW
 
         model = joblib.load(model_path)
         features = joblib.load(features_path)
         db = joblib.load(db_path)
-        return model, features, db
+        cbf_matrix = joblib.load(matrix_path)
+        cbf_scaler = joblib.load(scaler_path)
+
+        return model, features, db, cbf_matrix, cbf_scaler
     except FileNotFoundError:
-        st.error("❌ Error: Essential .pkl files are missing. Please ensure they are uploaded.")
+        st.error("❌ Error: Essential .pkl files are missing. Please ensure all 5 files are uploaded.")
         st.stop()
 
 
-model_pipeline, model_features, players_db = load_all_data()
+model_pipeline, model_features, players_db, cbf_matrix_scaled, cbf_scaler = load_all_data()
 
 # Initialize session states
 if 'player1_data' not in st.session_state:
@@ -118,33 +124,24 @@ def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
 
     fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
 
-    # Offset rotation to put the first axis at the top
     ax.set_theta_offset(math.pi / 2)
     ax.set_theta_direction(-1)
 
-    # Player 1 (Input)
     v1_plot = v1 + v1[:1]
     ax.plot(angles, v1_plot, linewidth=2, color='#1f77b4', label=n1)
     ax.fill(angles, v1_plot, '#1f77b4', alpha=0.1)
 
-    # Add numbers at vertices for Player 1
     for angle, val in zip(angles[:-1], v1):
         ax.text(angle, val + 12, str(int(val)), ha='center', va='center', fontsize=10, fontweight='bold',
                 color='#1f77b4')
 
-    # Player 2 (Comparison)
     if v2:
         v2_plot = v2 + v2[:1]
         ax.plot(angles, v2_plot, linewidth=2, color='#d62728', label=n2)
         ax.fill(angles, v2_plot, '#d62728', alpha=0.1)
 
-    # Labels for axes
     plt.xticks(angles[:-1], labels, color='black', size=11)
-
-    # Remove radial labels (the 20, 40, 60 circles) to clean up view
     ax.set_yticklabels([])
-
-    # Legend
     plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1))
 
     return fig
@@ -158,15 +155,18 @@ st.sidebar.title("🛠️ Scouting Form")
 # --- COMPARISON DROPDOWN ---
 st.sidebar.markdown("### 🏆 Comparison Benchmark")
 star_options = ["None"] + sorted(players_db['Name'].unique().tolist())
-star_name = st.sidebar.selectbox("Compare with Real Player:", star_options, index=0, on_change=on_dropdown_change, help="Select a player from the database to compare against your custom profile on the radar chart.")
+star_name = st.sidebar.selectbox("Compare with Real Player:", star_options, index=0, on_change=on_dropdown_change,
+                                 help="Select a player from the database to compare against your custom profile on the radar chart.")
 st.sidebar.markdown("---")
 
 # Basic Info
 st.sidebar.subheader("👤 Player Profile")
 name_input = st.sidebar.text_input("Full Name", "New Prospect")
 age_input = st.sidebar.slider("Age", 15, 45, 22)
-wk_max_age = st.sidebar.slider("Max Age for Wonderkids", 16, 24, 22, help="Set the maximum age limit for the Next-Gen Talents discovery table.")
-pot_input = st.sidebar.slider("Potential", 40, 99, 85, help="The maximum overall rating the player is projected to reach.")
+wk_max_age = st.sidebar.slider("Max Age for Wonderkids", 16, 24, 22,
+                               help="Set the maximum age limit for the Next-Gen Talents discovery table.")
+pot_input = st.sidebar.slider("Potential", 40, 99, 85,
+                              help="The maximum overall rating the player is projected to reach.")
 pos_input = st.sidebar.selectbox("Best Position", ['ST', 'LW', 'RW', 'CAM', 'CM', 'CDM', 'CB', 'LB', 'RB', 'GK'])
 foot_input = st.sidebar.radio("Preferred Foot", ["Right", "Left"], horizontal=True)
 
@@ -245,15 +245,35 @@ if st.session_state.get('run'):
     st.divider()
 
     # -------------------------------------------------------------
-    # PRE-CALCULATION LOGIC
+    # REAL AI PRE-CALCULATION LOGIC (Cosine Similarity)
     # -------------------------------------------------------------
-    pos_pool = players_db[players_db['Best Position'] == pos_input].copy()
-    pos_pool['sim_score'] = 100 - (
-            abs(pos_pool['Potential'] - pot_input) +
-            abs(pos_pool.get('SprintSpeed', 70) - in_sprint) * 0.5 +
-            abs(pos_pool.get('ShortPassing', 70) - in_pass) * 0.5
-    )
 
+    # 1. Identify which features were used for CBF in the ML script
+    ignore_cols = {'Name', 'Age', 'Value_EUR', 'Best Position', 'Potential', 'Name_norm', 'sim_score'}
+    cbf_features = [c for c in players_db.columns if c not in ignore_cols]
+
+    # 2. Build the custom player vector precisely matching CBF features
+    user_cbf_df = pd.DataFrame(columns=cbf_features)
+    user_cbf_df.loc[0] = 60  # Default baseline for skills not explicitly detailed in sliders
+
+    for k, v in input_dict.items():
+        if k in user_cbf_df.columns:
+            user_cbf_df.at[0, k] = v
+
+    # 3. Scale and Calculate Similarity
+    try:
+        user_vec_scaled = cbf_scaler.transform(user_cbf_df.values)
+        sims = cosine_similarity(user_vec_scaled, cbf_matrix_scaled)[0]
+        # Convert to percentage (0-100 scale) for the UI
+        players_db['sim_score'] = sims * 100
+    except Exception as e:
+        st.error(f"⚠️ CBF Engine Error: {e}")
+        players_db['sim_score'] = 0
+
+    # 4. Filter by position
+    pos_pool = players_db[players_db['Best Position'] == pos_input].copy()
+
+    # Generate Tables
     wonderkids = pos_pool[pos_pool['Age'] <= wk_max_age].sort_values('sim_score', ascending=False).head(5)
     matches = pos_pool.sort_values('sim_score', ascending=False).head(5)
 
@@ -342,7 +362,6 @@ if st.session_state.get('run'):
         # --- RADAR CHART ---
         st.subheader("📊 Comparison Radar")
         if comp_source_msg:
-            # Check if the compared player has a real market value in the DB to display
             if comp_name in players_db['Name'].values:
                 real_val = players_db[players_db['Name'] == comp_name]['Value_EUR'].values[0]
                 st.info(f"{comp_source_msg} | **Real Market Value: €{real_val / 1e6:.1f}M**")
@@ -434,7 +453,7 @@ if st.session_state.get('run'):
             csv_final += "\n--- SECTION 3: AI INSIGHTS & RECOMMENDATIONS ---\n"
             csv_final += df_insights.to_csv(index=False)
 
-            csv_final += "\n--- SECTION 4: HIGH-POTENTIAL PROSPECTS (FULL STATS) ---\n"
+            csv_final += "\n--- SECTION 4: HIGH-POTENTIAL PROSPEcripts (FULL STATS) ---\n"
             csv_final += wonderkids[full_cols].to_csv(index=False)
 
             csv_final += "\n--- SECTION 5: CLOSEST TACTICAL PROFILES (FULL STATS) ---\n"
