@@ -42,7 +42,7 @@ st.markdown("""
 
 
 # =========================================================
-# 2. DATA LOADING & STATE MANAGEMENT (UPDATED - No Matrix File Needed!)
+# 2. DATA LOADING & STATE MANAGEMENT (USING SMART LITE)
 # =========================================================
 @st.cache_resource
 def load_all_data():
@@ -50,6 +50,7 @@ def load_all_data():
     try:
         model_path = os.path.join(current_dir, 'fifa_model_pipeline.pkl')
         features_path = os.path.join(current_dir, 'model_features.pkl')
+        # החזרנו ל-LITE!
         db_path = os.path.join(current_dir, 'fifa_players_lite.pkl')
         scaler_path = os.path.join(current_dir, 'cbf_scaler.pkl')
 
@@ -58,7 +59,7 @@ def load_all_data():
         db = joblib.load(db_path)
         cbf_scaler = joblib.load(scaler_path)
 
-        # --- DATA ENGINEERING TRICK: Build the matrix in memory ---
+        # --- DATA ENGINEERING TRICK: Build the matrix in memory from the Lite DB ---
         meta_cols = ['Name', 'Age', 'Value_EUR', 'Best Position', 'Potential', 'Name_norm', 'Club', 'sim_score']
         cbf_features = [c for c in db.columns if c not in meta_cols]
 
@@ -130,33 +131,24 @@ def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
 
     fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
 
-    # Offset rotation to put the first axis at the top
     ax.set_theta_offset(math.pi / 2)
     ax.set_theta_direction(-1)
 
-    # Player 1 (Input)
     v1_plot = v1 + v1[:1]
     ax.plot(angles, v1_plot, linewidth=2, color='#1f77b4', label=n1)
     ax.fill(angles, v1_plot, '#1f77b4', alpha=0.1)
 
-    # Add numbers at vertices for Player 1
     for angle, val in zip(angles[:-1], v1):
         ax.text(angle, val + 12, str(int(val)), ha='center', va='center', fontsize=10, fontweight='bold',
                 color='#1f77b4')
 
-    # Player 2 (Comparison)
     if v2:
         v2_plot = v2 + v2[:1]
         ax.plot(angles, v2_plot, linewidth=2, color='#d62728', label=n2)
         ax.fill(angles, v2_plot, '#d62728', alpha=0.1)
 
-    # Labels for axes
     plt.xticks(angles[:-1], labels, color='black', size=11)
-
-    # Remove radial labels (the 20, 40, 60 circles) to clean up view
     ax.set_yticklabels([])
-
-    # Legend
     plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1))
 
     return fig
@@ -179,7 +171,7 @@ st.sidebar.subheader("👤 Player Profile")
 name_input = st.sidebar.text_input("Full Name", "New Prospect")
 age_input = st.sidebar.slider("Age", 15, 45, 22)
 wk_max_age = st.sidebar.slider("Max Age for Wonderkids", 16, 24, 22,
-                               help="Set the maximum age limit for the Next-Gen Talents discovery table.")
+                               help="Set the maximum age limit for the High-Potential Prospects discovery table.")
 pot_input = st.sidebar.slider("Potential", 40, 99, 85,
                               help="The maximum overall rating the player is projected to reach.")
 pos_input = st.sidebar.selectbox("Best Position", ['ST', 'LW', 'RW', 'CAM', 'CM', 'CDM', 'CB', 'LB', 'RB', 'GK'])
