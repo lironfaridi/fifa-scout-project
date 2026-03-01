@@ -335,9 +335,9 @@ if st.session_state.get('run'):
             st.markdown("---")
             st.markdown("**🚀 Growth Opportunities (+10 pts):**")
             col_r1, col_r2, col_r3 = st.columns(3)
-            if len(top_recs) > 0: col_r1.metric(top_recs[0][0], delta=f"€{top_recs[0][1]:.1f}M")
-            if len(top_recs) > 1: col_r2.metric(top_recs[1][0], delta=f"€{top_recs[1][1]:.1f}M")
-            if len(top_recs) > 2: col_r3.metric(top_recs[2][0], delta=f"€{top_recs[2][1]:.1f}M")
+            if len(top_recs) > 0: col_r1.metric(top_recs[0][0], "", delta=f"€{top_recs[0][1]:.1f}M")
+            if len(top_recs) > 1: col_r2.metric(top_recs[1][0], "", delta=f"€{top_recs[1][1]:.1f}M")
+            if len(top_recs) > 2: col_r3.metric(top_recs[2][0], "", delta=f"€{top_recs[2][1]:.1f}M")
 
         # --- RADAR CHART ---
         st.subheader("📊 Comparison Radar")
