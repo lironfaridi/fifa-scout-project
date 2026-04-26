@@ -3,7 +3,6 @@ import pandas as pd
 import joblib
 import numpy as np
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go  # <-- NEW: For interactive Radar Chart
 import math
 import os
 import time
@@ -20,6 +19,7 @@ st.set_page_config(
 )
 
 # --- CSS THEME UPGRADE ---
+# הוספנו עיצוב לכרטיסיות המדדים (Metrics) כדי שייראו כמו דאשבורד מקצועי
 st.markdown("""
     <style>
     .main {direction: ltr;}
@@ -127,7 +127,7 @@ def on_dropdown_change():
 
 
 # =========================================================
-# 3. ANALYTICS & RADAR HELPERS (UPGRADED TO PLOTLY)
+# 3. ANALYTICS & RADAR HELPERS
 # =========================================================
 def get_radar_values(d):
     """Maps raw attributes to the 6 radar categories"""
@@ -146,46 +146,36 @@ def get_db_player_data(name):
     return get_radar_values(row.to_dict('records')[0])
 
 
-def plot_radar_comparison_plotly(labels, v1, v2=None, n1="Current", n2="Comparison"):
+def plot_radar_comparison(labels, v1, v2=None, n1="Current", n2="Comparison"):
     """
-    Draws an interactive radar chart using Plotly
+    Draws a radar chart with numbers at the vertices (corners)
     """
-    fig = go.Figure()
+    N = len(labels)
+    angles = [n / float(N) * 2 * math.pi for n in range(N)]
+    angles += angles[:1]
 
-    # Base target player
-    fig.add_trace(go.Scatterpolar(
-        r=v1 + [v1[0]],
-        theta=labels + [labels[0]],
-        fill='toself',
-        name=n1,
-        line_color='#1f77b4',
-        fillcolor='rgba(31, 119, 180, 0.3)',
-        hoverinfo='r+name'
-    ))
+    fig, ax = plt.subplots(figsize=(6, 6), subplot_kw=dict(polar=True))
 
-    # Second comparison player
+    ax.set_theta_offset(math.pi / 2)
+    ax.set_theta_direction(-1)
+
+    v1_plot = v1 + v1[:1]
+    ax.plot(angles, v1_plot, linewidth=2, color='#1f77b4', label=n1)
+    ax.fill(angles, v1_plot, '#1f77b4', alpha=0.1)
+
+    for angle, val in zip(angles[:-1], v1):
+        ax.text(angle, val + 12, str(int(val)), ha='center', va='center', fontsize=10, fontweight='bold',
+                color='#1f77b4')
+
     if v2:
-        fig.add_trace(go.Scatterpolar(
-            r=v2 + [v2[0]],
-            theta=labels + [labels[0]],
-            fill='toself',
-            name=n2,
-            line_color='#d62728',
-            fillcolor='rgba(214, 39, 40, 0.3)',
-            hoverinfo='r+name'
-        ))
+        v2_plot = v2 + v2[:1]
+        ax.plot(angles, v2_plot, linewidth=2, color='#d62728', label=n2)
+        ax.fill(angles, v2_plot, '#d62728', alpha=0.1)
 
-    fig.update_layout(
-        polar=dict(
-            radialaxis=dict(visible=True, range=[0, 100], tickfont=dict(size=10)),
-            angularaxis=dict(tickfont=dict(size=14, weight='bold'))
-        ),
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
-        margin=dict(l=30, r=30, t=30, b=30),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)"
-    )
+    plt.xticks(angles[:-1], labels, color='black', size=11)
+    ax.set_yticklabels([])
+    plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1))
+
     return fig
 
 
@@ -349,43 +339,20 @@ if st.session_state.get('run'):
     # -------------------------------------------------------------
     # UI LAYOUT
     # -------------------------------------------------------------
-    l_col, r_col = st.columns([1.2, 1.5])
+    l_col, r_col = st.columns([1, 1.5])
 
     with l_col:
-        # --- PREDICTION (UPGRADED TO FUT CARD STYLE) ---
+        # --- PREDICTION (UPGRADED TO METRIC CARD) ---
         df_x = pd.DataFrame(columns=model_features)
         df_x.loc[0] = 0
         for k, v in input_dict.items():
             if k in df_x.columns: df_x.at[0, k] = v
 
         raw_pred = model_pipeline.predict(df_x)[0]
-        raw_pred = max(0.0, float(raw_pred))  # Ensure predicted value is never negative
+        raw_pred = max(0.0, float(raw_pred))  # FIX: Ensure predicted value is never negative
 
-        # FUT Card HTML Component
-        fut_card_html = f"""
-        <div style="background: linear-gradient(135deg, #1b2838 0%, #2a475e 100%);
-                    border-radius: 12px; padding: 20px; color: white;
-                    box-shadow: 0 8px 16px rgba(0,0,0,0.3); text-align: center; 
-                    border: 2px solid #66c0f4; margin-bottom: 20px;">
-            <p style="margin: 0; font-size: 14px; color: #c7d5e0; text-transform: uppercase; letter-spacing: 2px;">Predicted Market Value</p>
-            <h1 style="margin: 10px 0; font-size: 48px; color: #66c0f4; font-weight: 900;">€{raw_pred / 1e6:.1f}M</h1>
-            <div style="display: flex; justify-content: center; gap: 20px; margin-top: 15px;">
-                <div>
-                    <p style="margin: 0; font-size: 12px; color: #c7d5e0;">PLAYER</p>
-                    <h3 style="margin: 0; font-size: 18px;">{name_input.upper()}</h3>
-                </div>
-                <div>
-                    <p style="margin: 0; font-size: 12px; color: #c7d5e0;">POSITION</p>
-                    <h3 style="margin: 0; font-size: 18px;">{pos_input}</h3>
-                </div>
-                <div>
-                    <p style="margin: 0; font-size: 12px; color: #c7d5e0;">AGE / POT</p>
-                    <h3 style="margin: 0; font-size: 18px;">{age_input} | {pot_input}</h3>
-                </div>
-            </div>
-        </div>
-        """
-        st.markdown(fut_card_html, unsafe_allow_html=True)
+        st.subheader("🎯 Valuation Overview")
+        st.metric(label=f"Predicted Market Value for {name_input}", value=f"€{raw_pred / 1e6:.2f}M")
 
         # --- AI INSIGHTS ---
         current_drivers = []
@@ -395,7 +362,7 @@ if st.session_state.get('run'):
         for f in check_features:
             t_down = df_x.copy()
             t_down.at[0, f] -= 20
-            pred_down = max(0.0, float(model_pipeline.predict(t_down)[0]))
+            pred_down = max(0.0, float(model_pipeline.predict(t_down)[0]))  # FIX: Clamp simulated down-value
             drop = raw_pred - pred_down
             if drop > 0: current_drivers.append((f, drop / 1e6))
 
@@ -405,7 +372,7 @@ if st.session_state.get('run'):
         for f in check_features:
             t_up = df_x.copy()
             t_up.at[0, f] += 10
-            pred_up = max(0.0, float(model_pipeline.predict(t_up)[0]))
+            pred_up = max(0.0, float(model_pipeline.predict(t_up)[0]))  # FIX: Clamp simulated up-value
             gain = (pred_up - raw_pred) / 1e6
             if gain > 0: recommendations.append((f, gain))
 
@@ -426,7 +393,7 @@ if st.session_state.get('run'):
             if len(top_recs) > 1: col_r2.metric(top_recs[1][0], "", delta=f"€{top_recs[1][1]:.1f}M")
             if len(top_recs) > 2: col_r3.metric(top_recs[2][0], "", delta=f"€{top_recs[2][1]:.1f}M")
 
-        # --- WHAT-IF SIMULATOR ---
+        # --- WHAT-IF SIMULATOR (NEW FEATURE) ---
         st.markdown("---")
         st.subheader("🎛️ Interactive What-If Simulator")
         st.caption("Test how changing a specific attribute impacts the player's market value in real-time.")
@@ -437,7 +404,9 @@ if st.session_state.get('run'):
         with sim_col2:
             sim_change = st.slider(f"Change in {sim_feature}", min_value=-20, max_value=20, value=5, step=1)
 
+        # Calculate simulation dynamically
         sim_df = df_x.copy()
+        # Keep the simulated value bounded between 10 and 99
         sim_df.at[0, sim_feature] = max(10, min(99, sim_df.at[0, sim_feature] + sim_change))
         sim_pred = max(0.0, float(model_pipeline.predict(sim_df)[0]))
         sim_diff = sim_pred - raw_pred
@@ -447,9 +416,9 @@ if st.session_state.get('run'):
                       value=f"€{sim_pred / 1e6:.2f}M",
                       delta=f"€{sim_diff / 1e6:.2f}M" if sim_diff != 0 else "No Change")
 
-        # --- RADAR CHART (UPGRADED TO PLOTLY) ---
+        # --- RADAR CHART ---
         st.markdown("---")
-        st.subheader("📊 Tactical Radar Profile")
+        st.subheader("📊 Comparison Radar")
         if comp_source_msg:
             if comp_name in players_db['Name'].values:
                 real_val = players_db[players_db['Name'] == comp_name]['Value_EUR'].values[0]
@@ -460,49 +429,48 @@ if st.session_state.get('run'):
         radar_labels = ['Pace', 'Shooting', 'Passing', 'Dribbling', 'Defense', 'Physical']
         v1 = get_radar_values(input_dict)
 
-        fig_plotly = plot_radar_comparison_plotly(radar_labels, v1, comp_vals, name_input, comp_name)
-        st.plotly_chart(fig_plotly, use_container_width=True)
+        fig = plot_radar_comparison(radar_labels, v1, comp_vals, name_input, comp_name)
+        st.pyplot(fig)
 
     with r_col:
         st.subheader(f"🔍 Discovery Engine")
 
-        # --- CONFIGURING PROGRESS BARS FOR TABLES ---
         display_cols = ['Name', 'Age', 'Value_EUR', 'sim_score']
-        column_configuration = {
-            "Name": st.column_config.TextColumn("Player Name", width="medium"),
-            "Age": st.column_config.NumberColumn("Age", format="%d"),
-            "Value_EUR": st.column_config.NumberColumn("Market Value", format="€%d"),
-            "sim_score": st.column_config.ProgressColumn(
-                "Match Score %",
-                help="Similarity level to your target profile",
-                format="%.1f",
-                min_value=0,
-                max_value=100,
-            ),
-        }
 
         # --- TABLE 1: WONDERKIDS ---
         st.markdown(f"### 🎣 1. High-Potential Prospects (U{wk_max_age})")
+
+        if not wonderkids.empty:
+            wk_styled = wonderkids[display_cols].style.background_gradient(
+                subset=['sim_score'], cmap='RdYlGn', vmin=70, vmax=100
+            ).format({'Value_EUR': '€{:,.0f}', 'sim_score': '{:.1f}'})
+        else:
+            wk_styled = wonderkids[display_cols]
+
         st.dataframe(
-            wonderkids[display_cols],
+            wk_styled,
             use_container_width=True,
             on_select="rerun",
             selection_mode="single-row",
-            key="wk_table",
-            column_config=column_configuration,
-            hide_index=True
+            key="wk_table"
         )
 
         # --- TABLE 2: SOULMATES ---
         st.markdown("### 🧬 2. Closest Tactical Profiles")
+
+        if not matches.empty:
+            sm_styled = matches[display_cols].style.background_gradient(
+                subset=['sim_score'], cmap='RdYlGn', vmin=70, vmax=100
+            ).format({'Value_EUR': '€{:,.0f}', 'sim_score': '{:.1f}'})
+        else:
+            sm_styled = matches[display_cols]
+
         st.dataframe(
-            matches[display_cols],
+            sm_styled,
             use_container_width=True,
             on_select="rerun",
             selection_mode="single-row",
-            key="sm_table",
-            column_config=column_configuration,
-            hide_index=True
+            key="sm_table"
         )
 
         # =========================================================
@@ -512,6 +480,7 @@ if st.session_state.get('run'):
         st.subheader("📥 Export Report")
 
         try:
+            # 1. Tech Cols
             tech_cols_to_export = [
                 'SprintSpeed', 'Finishing', 'ShotPower', 'ShortPassing', 'Dribbling',
                 'StandingTackle', 'Interceptions', 'Stamina', 'Strength', 'Vision',
@@ -521,6 +490,7 @@ if st.session_state.get('run'):
             full_cols = ['Name', 'Age', 'Value_EUR', 'sim_score'] + valid_tech
             if 'Club' in players_db.columns: full_cols.insert(2, 'Club')
 
+            # 2. Build Insights DataFrame
             insights_data = []
             for d_name, d_val in top_drivers:
                 insights_data.append({'Type': 'Current Driver', 'Feature': d_name, 'Impact': f"Adds €{d_val:.1f}M"})
@@ -529,6 +499,7 @@ if st.session_state.get('run'):
 
             df_insights = pd.DataFrame(insights_data)
 
+            # 3. Construct CSV
             csv_final = "--- SECTION 1: TARGET PLAYER INPUT ---\n"
             target_df = pd.DataFrame([input_dict])
             target_df.insert(0, 'Player Name', name_input)
