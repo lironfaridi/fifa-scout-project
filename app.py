@@ -274,6 +274,7 @@ with action_container:
             if 'sm_table' in st.session_state: del st.session_state['sm_table']
 
 if st.session_state.get('run'):
+    run_start_time = time.time()  # <-- NEW: Start the execution timer
     st.divider()
 
     # -------------------------------------------------------------
@@ -342,6 +343,8 @@ if st.session_state.get('run'):
     l_col, r_col = st.columns([1, 1.5])
 
     with l_col:
+        timer_placeholder = st.empty()  # <-- NEW: Placeholder for the timer at the top
+
         # --- PREDICTION (UPGRADED TO METRIC CARD) ---
         df_x = pd.DataFrame(columns=model_features)
         df_x.loc[0] = 0
@@ -526,6 +529,14 @@ if st.session_state.get('run'):
             )
         except Exception as e:
             st.error(f"Export Error: {e}")
+
+    # --- END OF RUN: STOP TIMER AND DISPLAY ---
+    run_duration = time.time() - run_start_time
+    timer_placeholder.markdown(
+        f"<div style='text-align: left; color: #6c757d; font-size: 13px; margin-bottom: -15px;'>"
+        f"⏱️ <b>Latency:</b> {run_duration:.3f}s</div>",
+        unsafe_allow_html=True
+    )
 
 else:
     st.write("---")
