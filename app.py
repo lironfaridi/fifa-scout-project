@@ -18,6 +18,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- CSS THEME UPGRADE ---
+# הוספנו עיצוב לכרטיסיות המדדים (Metrics) כדי שייראו כמו דאשבורד מקצועי
 st.markdown("""
     <style>
     .main {direction: ltr;}
@@ -36,6 +38,29 @@ st.markdown("""
         background-color: #28a745 !important;
         color: white !important;
         border: none;
+    }
+
+    /* Custom Styling for Metric Cards */
+    div[data-testid="metric-container"] {
+        background-color: #f4f6f9;
+        border: 1px solid #e1e4e8;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 2px 2px 8px rgba(0,0,0,0.05);
+        transition: transform 0.2s;
+    }
+    div[data-testid="metric-container"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 4px 4px 12px rgba(0,0,0,0.1);
+    }
+
+    /* Dark Mode Support for Metrics */
+    @media (prefers-color-scheme: dark) {
+        div[data-testid="metric-container"] {
+            background-color: #1e1e1e;
+            border: 1px solid #333;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -317,16 +342,17 @@ if st.session_state.get('run'):
     l_col, r_col = st.columns([1, 1.5])
 
     with l_col:
-        # --- PREDICTION ---
+        # --- PREDICTION (UPGRADED TO METRIC CARD) ---
         df_x = pd.DataFrame(columns=model_features)
         df_x.loc[0] = 0
         for k, v in input_dict.items():
             if k in df_x.columns: df_x.at[0, k] = v
 
         raw_pred = model_pipeline.predict(df_x)[0]
-        raw_pred = max(0.0, float(raw_pred))  # <-- FIX: Ensure predicted value is never negative
+        raw_pred = max(0.0, float(raw_pred))  # FIX: Ensure predicted value is never negative
 
-        st.markdown(f"### 💰 Value: €{raw_pred / 1e6:.2f}M")
+        st.subheader("🎯 Valuation Overview")
+        st.metric(label=f"Predicted Market Value for {name_input}", value=f"€{raw_pred / 1e6:.2f}M")
 
         # --- AI INSIGHTS ---
         current_drivers = []
@@ -336,7 +362,7 @@ if st.session_state.get('run'):
         for f in check_features:
             t_down = df_x.copy()
             t_down.at[0, f] -= 20
-            pred_down = max(0.0, float(model_pipeline.predict(t_down)[0]))  # <-- FIX: Clamp simulated down-value
+            pred_down = max(0.0, float(model_pipeline.predict(t_down)[0]))  # FIX: Clamp simulated down-value
             drop = raw_pred - pred_down
             if drop > 0: current_drivers.append((f, drop / 1e6))
 
@@ -346,7 +372,7 @@ if st.session_state.get('run'):
         for f in check_features:
             t_up = df_x.copy()
             t_up.at[0, f] += 10
-            pred_up = max(0.0, float(model_pipeline.predict(t_up)[0]))  # <-- FIX: Clamp simulated up-value
+            pred_up = max(0.0, float(model_pipeline.predict(t_up)[0]))  # FIX: Clamp simulated up-value
             gain = (pred_up - raw_pred) / 1e6
             if gain > 0: recommendations.append((f, gain))
 
@@ -367,7 +393,31 @@ if st.session_state.get('run'):
             if len(top_recs) > 1: col_r2.metric(top_recs[1][0], "", delta=f"€{top_recs[1][1]:.1f}M")
             if len(top_recs) > 2: col_r3.metric(top_recs[2][0], "", delta=f"€{top_recs[2][1]:.1f}M")
 
+        # --- WHAT-IF SIMULATOR (NEW FEATURE) ---
+        st.markdown("---")
+        st.subheader("🎛️ Interactive What-If Simulator")
+        st.caption("Test how changing a specific attribute impacts the player's market value in real-time.")
+
+        sim_col1, sim_col2, sim_col3 = st.columns([1.2, 1.2, 1])
+        with sim_col1:
+            sim_feature = st.selectbox("Select Attribute to Modify", check_features)
+        with sim_col2:
+            sim_change = st.slider(f"Change in {sim_feature}", min_value=-20, max_value=20, value=5, step=1)
+
+        # Calculate simulation dynamically
+        sim_df = df_x.copy()
+        # Keep the simulated value bounded between 10 and 99
+        sim_df.at[0, sim_feature] = max(10, min(99, sim_df.at[0, sim_feature] + sim_change))
+        sim_pred = max(0.0, float(model_pipeline.predict(sim_df)[0]))
+        sim_diff = sim_pred - raw_pred
+
+        with sim_col3:
+            st.metric(label="Simulated Value",
+                      value=f"€{sim_pred / 1e6:.2f}M",
+                      delta=f"€{sim_diff / 1e6:.2f}M" if sim_diff != 0 else "No Change")
+
         # --- RADAR CHART ---
+        st.markdown("---")
         st.subheader("📊 Comparison Radar")
         if comp_source_msg:
             if comp_name in players_db['Name'].values:
@@ -461,7 +511,7 @@ if st.session_state.get('run'):
             csv_final += "\n--- SECTION 3: AI INSIGHTS & RECOMMENDATIONS ---\n"
             csv_final += df_insights.to_csv(index=False)
 
-            csv_final += "\n--- SECTION 4: HIGH-POTENTIAL PROSPEcripts (FULL STATS) ---\n"
+            csv_final += "\n--- SECTION 4: HIGH-POTENTIAL PROSPECTS (FULL STATS) ---\n"
             csv_final += wonderkids[full_cols].to_csv(index=False)
 
             csv_final += "\n--- SECTION 5: CLOSEST TACTICAL PROFILES (FULL STATS) ---\n"
