@@ -324,6 +324,8 @@ if st.session_state.get('run'):
             if k in df_x.columns: df_x.at[0, k] = v
 
         raw_pred = model_pipeline.predict(df_x)[0]
+        raw_pred = max(0.0, float(raw_pred))  # <-- FIX: Ensure predicted value is never negative
+
         st.markdown(f"### 💰 Value: €{raw_pred / 1e6:.2f}M")
 
         # --- AI INSIGHTS ---
@@ -334,7 +336,8 @@ if st.session_state.get('run'):
         for f in check_features:
             t_down = df_x.copy()
             t_down.at[0, f] -= 20
-            drop = raw_pred - model_pipeline.predict(t_down)[0]
+            pred_down = max(0.0, float(model_pipeline.predict(t_down)[0]))  # <-- FIX: Clamp simulated down-value
+            drop = raw_pred - pred_down
             if drop > 0: current_drivers.append((f, drop / 1e6))
 
         top_drivers = sorted(current_drivers, key=lambda x: x[1], reverse=True)[:3]
@@ -343,7 +346,8 @@ if st.session_state.get('run'):
         for f in check_features:
             t_up = df_x.copy()
             t_up.at[0, f] += 10
-            gain = (model_pipeline.predict(t_up)[0] - raw_pred) / 1e6
+            pred_up = max(0.0, float(model_pipeline.predict(t_up)[0]))  # <-- FIX: Clamp simulated up-value
+            gain = (pred_up - raw_pred) / 1e6
             if gain > 0: recommendations.append((f, gain))
 
         top_recs = sorted(recommendations, key=lambda x: x[1], reverse=True)[:3]
@@ -457,7 +461,7 @@ if st.session_state.get('run'):
             csv_final += "\n--- SECTION 3: AI INSIGHTS & RECOMMENDATIONS ---\n"
             csv_final += df_insights.to_csv(index=False)
 
-            csv_final += "\n--- SECTION 4: HIGH-POTENTIAL PROSPECTS (FULL STATS) ---\n"
+            csv_final += "\n--- SECTION 4: HIGH-POTENTIAL PROSPEcripts (FULL STATS) ---\n"
             csv_final += wonderkids[full_cols].to_csv(index=False)
 
             csv_final += "\n--- SECTION 5: CLOSEST TACTICAL PROFILES (FULL STATS) ---\n"
